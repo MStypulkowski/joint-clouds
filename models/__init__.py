@@ -1,1 +1,1 @@
-from models.hierarchicalVAE import HierarchicalVAE
+from models.topdownVAE import TopDownVAE

@@ -6,9 +6,9 @@ from models.backbones import PointNet, MLP
 from utils import count_trainable_parameters
 
 
-class HierarchicalVAE(nn.Module):
+class TopDownVAE(nn.Module):
     def __init__(self, x_dim, y_dim, h_dim=64, e_dim=64, z1_dim=64, z2_dim=64, n_layers=3):
-        super(HierarchicalVAE, self).__init__()
+        super(TopDownVAE, self).__init__()
 
         self.z2_dim = z2_dim
 
@@ -98,7 +98,7 @@ class HierarchicalVAE(nn.Module):
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    hvae = HierarchicalVAE(2, 4, h_dim=32, e_dim=64, z1_dim=128, z2_dim=256).to(device)
+    hvae = TopDownVAE(2, 4, h_dim=32, e_dim=64, z1_dim=128, z2_dim=256).to(device)
     print('Number of trainable parameters:', count_trainable_parameters(hvae))
 
     x = torch.randn(8, 2, 16).to(device)
