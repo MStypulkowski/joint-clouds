@@ -1,0 +1,15 @@
+# data
+data_dir: /pio/scratch/1/mstyp/joint-clouds/data
+
+# model
+h_dim: 64
+e_dim: 64
+z1_dim: 64
+z2_dim: 64
+
+# training
+gpu: True
+n_points_per_cloud: 128
+bsz: 64
+lr: 1e-4
+n_epochs: 10000
