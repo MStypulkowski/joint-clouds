@@ -31,38 +31,36 @@ def main(args):
 
     print('=' * 100)
     print('Preparing dataset...')
-    # data_train = MNIST2D(args.data_dir)
-    data_test = MNIST2D(args.data_dir, split='test')
+    data_train = MNIST2D(args.data_dir)
+    # data_test = MNIST2D(args.data_dir, split='test')
 
-    # dataloader_train = DataLoader(data_train, batch_size=args.bsz, shuffle=True)
-    dataloader_test = DataLoader(data_test, batch_size=args.bsz, shuffle=True)
+    dataloader_train = DataLoader(data_train, batch_size=args.bsz, shuffle=True)
+    # dataloader_test = DataLoader(data_test, batch_size=args.bsz, shuffle=True)
 
     print('=' * 100)
     print('Preparing model...')
 
-    model = HierarchicalVAE(data_test.x_dim, data_test.n_classes,
+    model = HierarchicalVAE(data_train.x_dim, data_train.n_classes,
                             h_dim=args.h_dim, e_dim=args.e_dim, z1_dim=args.z1_dim, z2_dim=args.z2_dim).to(device)
     
     print(f'Number of trainable parameters: {count_trainable_parameters(model)}')
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    classification_loss = nn.CrossEntropyLoss
+    classification_loss = nn.CrossEntropyLoss()
 
     print('=' * 100)
     print('Training...')
-    # # with wandb.init(project="joint-clouds", entity="joint-clouds", config=args, name='H-VAE p(x) * p(y|x)'):
+    # # with wandb.init(project="joint-clouds", entity="joint-clouds", config=args, name='H-VAE p(x)(y|x)'):
     for epoch in range(args.n_epochs):
-        pbar = tqdm(dataloader_test, desc=f'Epoch: {epoch}')
+        pbar = tqdm(dataloader_train, desc=f'Epoch: {epoch}')
         for x, y, _ in pbar:
             optimizer.zero_grad()
-            print(x.shape, y.shape)
-            x = x.to(device)
+            x = x.float().to(device)
             y = y.to(device)
 
             elbo, logits = model(x)
             class_loss_val = classification_loss(logits, y)
-            print(logits.shape)
-            accuracy = logits.max()
+            accuracy = (logits.argmax(1) == y).float().mean() * 100
 
             loss = elbo + class_loss_val
 
@@ -77,6 +75,9 @@ def main(args):
                     'Class. accuracy': '%.2f' % accuracy,
                 }
             ))
+        
+        if epoch % args.val_frequency == 0:
+            pass
 
 
 if __name__ == '__main__':

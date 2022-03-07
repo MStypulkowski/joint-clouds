@@ -10,6 +10,7 @@ z2_dim: 64
 # training
 gpu: True
 n_points_per_cloud: 128
-bsz: 64
+bsz: 1024
 lr: 1e-4
 n_epochs: 10000
+val_frequency: 5
