@@ -37,6 +37,9 @@ class MNIST2D(Dataset):
             clouds = []
             contexts = []
             while i < len(lines):
+                if int(lines[i]) != 1:
+                    i += int(lines[i + 1]) + 3
+                    continue
                 labels.append(int(lines[i]))
                 i += 1
                 n_points = int(lines[i])
@@ -56,9 +59,10 @@ class MNIST2D(Dataset):
                 contexts.append(np.array(context))
                 i += n_points + 1
             
-            assert len(clouds) == n_clouds
-            assert len(labels) == n_clouds
-            assert len(contexts) == n_clouds
+            # assert len(clouds) == n_clouds
+            # assert len(labels) == n_clouds
+            # assert len(contexts) == n_clouds
+            assert len(clouds) == len(labels) == len(contexts)
         
         return clouds, labels, contexts
         

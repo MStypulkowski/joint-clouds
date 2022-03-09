@@ -2,19 +2,23 @@
 data_dir: /pio/scratch/1/mstyp/joint-clouds/data
 
 # model
-h_dim: 64
-e_dim: 64
-z1_dim: 64
-z2_dim: 64
-n_layers: 3
+h1_dim: 16
+h2_dim: 2
+e_dim: 16
+ze_dim: 2
+z1_dim: 2
+z2_dim: 2
+hid_dim: 64
+n_layers: 2
+activation: silu
 
 # training
 gpu: True
-n_points_per_cloud: 512
-bsz: 2048
+n_points_per_cloud: 256
+bsz: 4096
 lr: 1e-4
-n_epochs: 10000
+n_epochs: 1000
 
 # evaluation
-eval_frequency: 5
-n_samples: 10
+eval_frequency: 50
+n_samples: 2
