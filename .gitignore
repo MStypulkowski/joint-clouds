@@ -133,3 +133,4 @@ data/
 *.ipynb
 outputs/
 .vscode/
+results/

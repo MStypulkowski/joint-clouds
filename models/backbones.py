@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class PointNet(nn.Module):
-    def __init__(self, in_dim, out_dim, hid_dim=64, n_layers=3, activation='relu', kernel_size=1, pooling=False):
+    def __init__(self, in_dim, out_dim, hid_dim=64, n_layers=3, activation='relu', last_activation=None, kernel_size=1, pooling=False):
         super(PointNet, self).__init__()
         assert n_layers >= 2
         
@@ -11,6 +11,10 @@ class PointNet(nn.Module):
             self.activation = nn.ReLU()
         elif activation == 'silu':
             self.activation = nn.SiLU()
+        
+        self.last_activation = None
+        if last_activation == 'tanh':
+            self.last_activation = nn.Tanh()
 
         self.pooling = pooling
 
@@ -35,11 +39,14 @@ class PointNet(nn.Module):
         if self.pooling:
             pass
 
+        if self.last_activation is not None:
+            x = self.last_activation(x)
+
         return x
 
 
 class CPointNet(nn.Module):
-    def __init__(self, in_dim, out_dim, c_dim, hid_dim=64, n_layers=3, activation='relu', kernel_size=1, pooling=False):
+    def __init__(self, in_dim, out_dim, c_dim, hid_dim=64, n_layers=3, activation='relu', last_activation=None, kernel_size=1, pooling=False):
         super(CPointNet, self).__init__()
         assert n_layers >= 2
 
@@ -49,6 +56,10 @@ class CPointNet(nn.Module):
             self.activation = nn.ReLU()
         elif activation == 'silu':
             self.activation = nn.SiLU()
+
+        self.last_activation = None
+        if last_activation == 'tanh':
+            self.last_activation = nn.Tanh()
 
         self.pooling = pooling
 
@@ -73,18 +84,25 @@ class CPointNet(nn.Module):
 
         if self.pooling:
             pass
+        
+        if self.last_activation is not None:
+            xc = self.last_activation(xc)
 
         return xc
 
 
 class MLP(nn.Module):
-    def __init__(self, in_dim, out_dim, hid_dim=64, n_layers=3, activation='relu'):
+    def __init__(self, in_dim, out_dim, hid_dim=64, n_layers=3, activation='relu', last_activation=None):
         super(MLP, self).__init__()
         assert n_layers >= 2
         if activation == 'relu':
             self.activation = nn.ReLU()
         elif activation == 'silu':
             self.activation = nn.SiLU()
+
+        self.last_activation = None
+        if last_activation == 'tanh':
+            self.last_activation = nn.Tanh()
 
         self.fcs = [nn.Linear(in_dim, hid_dim)]
         for _ in range(n_layers - 2):
@@ -98,11 +116,16 @@ class MLP(nn.Module):
         for fc in self.fcs[:-1]:
             x = self.activation(fc(x))
 
-        return self.fcs[-1](x)
+        x = self.fcs[-1](x)
+
+        if self.last_activation is not None:
+            x = self.last_activation(x)
+
+        return x
 
 
 class CMLP(nn.Module):
-    def __init__(self, in_dim, out_dim, c_dim, hid_dim=64, n_layers=3, activation='relu'):
+    def __init__(self, in_dim, out_dim, c_dim, hid_dim=64, n_layers=3, activation='relu', last_activation=None):
         super(CMLP, self).__init__()
         assert n_layers >= 2
 
@@ -112,6 +135,10 @@ class CMLP(nn.Module):
             self.activation = nn.ReLU()
         elif activation == 'silu':
             self.activation = nn.SiLU()
+
+        self.last_activation = None
+        if last_activation == 'tanh':
+            self.last_activation = nn.Tanh()
 
         self.fcs = [nn.Linear(in_dim + c_dim, hid_dim)]
         for _ in range(n_layers - 2):
@@ -127,7 +154,10 @@ class CMLP(nn.Module):
         for fc in self.fcs[:-1]:
             xc = self.activation(fc(xc))
 
-        return self.fcs[-1](xc)
+        if self.last_activation is not None:
+            xc = self.last_activation(xc)
+
+        return xc
 
 
 if __name__ == '__main__':

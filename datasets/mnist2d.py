@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import Dataset
@@ -37,7 +38,7 @@ class MNIST2D(Dataset):
             clouds = []
             contexts = []
             while i < len(lines):
-                if int(lines[i]) != 1:
+                if int(lines[i]) != 2:
                     i += int(lines[i + 1]) + 3
                     continue
                 labels.append(int(lines[i]))
@@ -55,7 +56,7 @@ class MNIST2D(Dataset):
                 assert len(points) == n_points
                 assert len(context) == n_points
 
-                clouds.append(np.array(points).T)
+                clouds.append(np.array(points))
                 contexts.append(np.array(context))
                 i += n_points + 1
             
@@ -71,24 +72,24 @@ class MNIST2D(Dataset):
         cloud = self.transform(self.clouds[idx]).squeeze(0)
         context = torch.tensor(self.contexts[idx])
 
-        n_points = cloud.shape[-1]
+        n_points = cloud.shape[0]
 
         if n_points < self.n_points_per_cloud:
             # resample points if too few and add some noise
             weights = torch.ones(n_points)
             point_ids = torch.multinomial(weights, self.n_points_per_cloud, replacement=True)
-            cloud = cloud[:, point_ids]
+            cloud = cloud[point_ids, :]
             cloud += torch.rand(cloud.shape) / 10
             context = context[point_ids]
 
         elif n_points > self.n_points_per_cloud:
             # randomly pick a subset of the cloud if too many points
             permutation = torch.randperm(n_points)
-            cloud = cloud[:, permutation]
-            cloud = cloud[:, :self.n_points_per_cloud]
+            cloud = cloud[permutation, :]
+            cloud = cloud[:self.n_points_per_cloud, :]
             context = context[permutation]
             context = context[:self.n_points_per_cloud]
-
+        
         return cloud.squeeze(0), self.labels[idx], context
 
 
@@ -103,5 +104,6 @@ if __name__ == '__main__':
 
     for i, (cloud, label, context) in enumerate(dataset):
         print(cloud.shape, label, len(context))
+
         if i == 10:
             break
