@@ -25,7 +25,7 @@ from utils import count_trainable_parameters
 
 @hydra.main(config_path='./configs', config_name='config')
 def main(args):
-    # experiment = Experiment('eG0HIQPbyXYfRsbPM2cHQs3IU', project_name='joint-clouds')
+    # experiment = Experiment(project_name='joint-clouds')
     # experiment.log_parameters(args)
 
     if args.gpu and torch.cuda.is_available():
@@ -48,6 +48,9 @@ def main(args):
     model = ConditionalTopDownVAE(data_train.x_dim, data_train.n_classes,
                             h1_dim=args.h1_dim, h2_dim=args.h2_dim, e_dim=args.e_dim, ze_dim=args.ze_dim, z1_dim=args.z1_dim, z2_dim=args.z2_dim, 
                             hid_dim=args.hid_dim, n_layers=args.n_layers, activation=args.activation).to(device)
+    
+    if args.n_gpus > 1:
+        model = torch.nn.DataParallel(model)
 
     print(model)
     print(f'Number of trainable parameters: {count_trainable_parameters(model)}')
@@ -69,6 +72,7 @@ def main(args):
                 plt.scatter(sample[:, 0], sample[:, 1])
                 plt.title(title)
                 plt.savefig(os.path.join(args.save_dir, 'figures', title + '.png'))
+                plt.close()
                 # sample = [[x1, x2] for (x1, x2) in sample]
                 # table = wandb.Table(data=sample, columns=['x1', 'x2'])
                 # wandb.log({f'Data': wandb.plot.scatter(table, 'x1', 'x2', title=f'Data')})
@@ -89,9 +93,17 @@ def main(args):
             # accuracy = (logits.argmax(1) == y).float().mean() * 100
 
             # loss = elbo + class_loss_val
-
             # loss.backward()
-            elbo.backward()
+            if args.n_gpus > 1:
+                elbo = elbo.mean()
+                nll = nll.mean()
+                kl_z1 = kl_z1.mean()
+                kl_z2 = kl_z2.mean()
+                kl_ze = kl_ze.mean()
+            if epoch < args.n_warmup_epochs:
+                nll.backward()
+            else:
+                elbo.backward()
             optimizer.step()
 
             pbar.set_postfix(OrderedDict(
@@ -135,7 +147,10 @@ def main(args):
                 model.eval()
 
                 # generation
-                samples = model.sample(args.n_samples, args.n_points_per_cloud_gen).permute(0, 2, 1)
+                if args.n_gpus > 1:
+                    samples = model.module.sample(args.n_samples, args.n_points_per_cloud_gen).permute(0, 2, 1)
+                else:
+                    samples = model.sample(args.n_samples, args.n_points_per_cloud_gen).permute(0, 2, 1)
                 samples = samples * data_std + data_mean
                 for i, sample in enumerate(samples):
                     sample = sample.cpu().numpy()
@@ -144,6 +159,7 @@ def main(args):
                     plt.scatter(sample[:, 0], sample[:, 1])
                     plt.title(title)
                     plt.savefig(os.path.join(args.save_dir, 'figures', title + '.png'))
+                    plt.close()
                     # sample = [[x1, x2] for (x1, x2) in sample]
                     # table = wandb.Table(data=sample, columns=['x1', 'x2'])
                     # wandb.log({f'Sample {i} epoch {epoch}': wandb.plot.scatter(table, 'x1', 'x2', title=f'Sample {i} epoch {epoch}')})
@@ -159,6 +175,7 @@ def main(args):
                     ax[1].scatter(_x_recon[:, 0], _x_recon[:, 1])
                     fig.suptitle(title)
                     plt.savefig(os.path.join(args.save_dir, 'figures', title + '.png'))
+                    plt.close()
                 # # ELBO + classification
                 # test_shape_count = 0
                 # test_elbo_acc = 0.

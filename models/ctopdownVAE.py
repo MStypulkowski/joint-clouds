@@ -25,6 +25,7 @@ class ConditionalTopDownVAE(nn.Module):
 
         self.mlp_h2_e = MLP(h2_dim, e_dim, hid_dim=hid_dim, n_layers=n_layers, activation=activation, last_activation=None)
         self.mlp_e_ze = MLP(e_dim, 2 * ze_dim, hid_dim=hid_dim, n_layers=n_layers, activation=activation, last_activation=None)
+        self.mlp_ze_z2 = MLP(ze_dim, 2 * z2_dim, hid_dim=hid_dim, n_layers=n_layers, activation=activation, last_activation=None)
         
     def reparametrization(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
@@ -71,7 +72,9 @@ class ConditionalTopDownVAE(nn.Module):
         #     plt.figure()
         #     plt.hist(ze.detach().cpu().numpy().reshape(-1), bins=25)
         #     plt.savefig('/pio/scratch/1/mstyp/joint-clouds/results/figures/ze.png')
-        z2 = self.reparametrization(delta_mu_z2, delta_logvar_z2)
+        mu_z2, logvar_z2 = self.mlp_ze_z2(ze).chunk(2, 1)
+        mu_z2, logvar_z2 = mu_z2.unsqueeze(-1).expand(-1, self.z2_dim, x.shape[-1]), logvar_z2.unsqueeze(-1).expand(-1, self.z2_dim, x.shape[-1])
+        z2 = self.reparametrization(mu_z2 + delta_mu_z2, logvar_z2 + delta_logvar_z2)
         # if epoch is not None:
         #     _z2 = z2[0].detach().cpu().numpy().T
         #     plt.figure()
@@ -79,6 +82,7 @@ class ConditionalTopDownVAE(nn.Module):
         #     plt.savefig('/pio/scratch/1/mstyp/joint-clouds/results/figures/z2.png')
         mu_z1, logvar_z1 = self.cpn_z2_z1(z2, ze).chunk(2, 1)
         z1 = self.reparametrization(mu_z1 + delta_mu_z1, logvar_z1 + delta_logvar_z1)
+        z1 += z2
         # if epoch is not None:
         #     _z1 = z1[0].detach().cpu().numpy().T
         #     plt.figure()
@@ -90,7 +94,8 @@ class ConditionalTopDownVAE(nn.Module):
         # ELBO
         # KL
         kl_ze = 0.5 * (delta_mu_ze**2 + torch.exp(delta_logvar_ze) - delta_logvar_ze - 1).sum(1)
-        kl_z2 = 0.5 * (delta_mu_z2**2 + torch.exp(delta_logvar_z2) - delta_logvar_z2 - 1).sum([1, 2])
+        # kl_z2 = 0.5 * (delta_mu_z2**2 + torch.exp(delta_logvar_z2) - delta_logvar_z2 - 1).sum([1, 2])
+        kl_z2 = 0.5 * (delta_mu_z2**2 * torch.exp(-logvar_z2) + torch.exp(delta_logvar_z2) - delta_logvar_z2 - 1).sum([1, 2])
         kl_z1 = 0.5 * (delta_mu_z1**2 * torch.exp(-logvar_z1) + torch.exp(delta_logvar_z1) - delta_logvar_z1 - 1).sum([1, 2])
         
         # log-likelihood
@@ -104,7 +109,11 @@ class ConditionalTopDownVAE(nn.Module):
 
     def sample(self, n_samples, n_points, device='cuda'):
         ze = torch.randn(n_samples, self.ze_dim).to(device)
-        z2 = torch.randn(n_samples, self.z2_dim, n_points).to(device)
+
+        mu_z2, logvar_z2 = self.mlp_ze_z2(ze).chunk(2, 1)
+        mu_z2, logvar_z2 = mu_z2.unsqueeze(-1).expand(-1, self.z2_dim, n_points), logvar_z2.unsqueeze(-1).expand(-1, self.z2_dim, n_points)
+        z2 = self.reparametrization(mu_z2, logvar_z2)
+        # z2 = torch.randn(n_samples, self.z2_dim, n_points).to(device)
 
         mu_z1, logvar_z1 = self.cpn_z2_z1(z2, ze).chunk(2, 1)
         z1 = self.reparametrization(mu_z1, logvar_z1)
