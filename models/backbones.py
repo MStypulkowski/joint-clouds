@@ -77,7 +77,8 @@ class CPointNet(nn.Module):
     def forward(self, x, c):
         assert x.dim() == 3
 
-        xc = torch.cat([x, c.unsqueeze(-1).expand(-1, self.c_dim, x.shape[-1])], dim=1)
+        # xc = torch.cat([x, c.unsqueeze(-1).expand(-1, self.c_dim, x.shape[-1])], dim=1)
+        xc = torch.cat([x, c], dim=1)
         for fc in self.convs[:-1]:
             xc = self.activation(fc(xc))
         xc = self.convs[-1](xc)
@@ -146,13 +147,15 @@ class CMLP(nn.Module):
         self.fcs.append(nn.Linear(hid_dim, out_dim))
         self.fcs = nn.ModuleList(self.fcs)
 
-    def forward(self, x):
+    def forward(self, x, c):
         assert x.dim() == 2
 
-        xc = torch.cat([x, c.unsqueeze(-1).expand(-1, self.c_dim, x.shape[-1])], dim=1)
+        # xc = torch.cat([x, c.unsqueeze(-1).expand(-1, self.c_dim, x.shape[-1])], dim=1)
+        xc = torch.cat([x, c], dim=1)
 
         for fc in self.fcs[:-1]:
             xc = self.activation(fc(xc))
+        xc = self.fcs[-1](xc)
 
         if self.last_activation is not None:
             xc = self.last_activation(xc)

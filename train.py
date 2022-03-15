@@ -81,7 +81,7 @@ def main(args):
             x = x.float().to(device)
             data_mean, data_std = x.mean([0, 1]), x.std([0, 1])
             x = (x - data_mean) / data_std
-            x = x.permute([0, 2, 1])
+            x = x.permute(0, 2, 1)
             # y = y.to(device)
 
             # elbo, logits, nll, kl_z1, kl_z2 = model(x)
@@ -148,9 +148,9 @@ def main(args):
 
                 # generation
                 if args.n_gpus > 1:
-                    samples = model.module.sample(args.n_samples, args.n_points_per_cloud_gen).permute(0, 2, 1)
+                    samples = model.module.sample(args.n_samples, args.n_points_per_cloud_gen)
                 else:
-                    samples = model.sample(args.n_samples, args.n_points_per_cloud_gen).permute(0, 2, 1)
+                    samples = model.sample(args.n_samples, args.n_points_per_cloud_gen)
                 samples = samples * data_std + data_mean
                 for i, sample in enumerate(samples):
                     sample = sample.cpu().numpy()
