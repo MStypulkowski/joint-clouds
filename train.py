@@ -23,10 +23,11 @@ from utils import count_trainable_parameters
 # wandb.login()
 
 
-@hydra.main(config_path='./configs', config_name='config')
+@hydra.main(config_path='./configs', config_name='config7')
 def main(args):
     # experiment = Experiment(project_name='joint-clouds')
     # experiment.log_parameters(args)
+    print(args)
 
     if args.gpu and torch.cuda.is_available():
         device = 'cuda'
@@ -46,7 +47,8 @@ def main(args):
     print('Preparing model...')
 
     model = ConditionalTopDownVAE(data_train.x_dim, data_train.n_classes,
-                            h1_dim=args.h1_dim, h2_dim=args.h2_dim, e_dim=args.e_dim, ze_dim=args.ze_dim, z1_dim=args.z1_dim, z2_dim=args.z2_dim, 
+                            h1_dim=args.h1_dim, h2_dim=args.h2_dim, e_dim=args.e_dim, ze_dim=args.ze_dim, 
+                            z1_dim=args.z1_dim, z2_dim=args.z2_dim, r1_dim=args.r1_dim,
                             hid_dim=args.hid_dim, n_layers=args.n_layers, activation=args.activation).to(device)
     
     if args.n_gpus > 1:
@@ -86,7 +88,7 @@ def main(args):
 
             # elbo, logits, nll, kl_z1, kl_z2 = model(x)
             if i == 0:
-                elbo, nll, kl_z1, kl_z2, kl_ze, x_recon = model(x, epoch=epoch)
+                elbo, nll, kl_z1, kl_z2, kl_ze, x_recon = model(x, epoch=epoch, save_dir=args.save_dir)
             else:
                 elbo, nll, kl_z1, kl_z2, kl_ze, x_recon = model(x)
             # class_loss_val = classification_loss(logits, y)

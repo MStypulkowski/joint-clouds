@@ -19,10 +19,13 @@ class PointNet(nn.Module):
         self.pooling = pooling
 
         self.convs = [nn.Conv1d(in_dim, hid_dim, kernel_size)]
+        self.bns = [nn.BatchNorm1d(hid_dim)]
         for _ in range(n_layers - 2):
             self.convs.append(nn.Conv1d(hid_dim, hid_dim, kernel_size))
+            self.bns.append(nn.BatchNorm1d(hid_dim))
         self.convs.append(nn.Conv1d(hid_dim, out_dim, kernel_size))
         self.convs = nn.ModuleList(self.convs)
+        self.bns = nn.ModuleList(self.bns)
 
         if pooling:
             # TODO
@@ -32,8 +35,8 @@ class PointNet(nn.Module):
     def forward(self, x):
         assert x.dim() == 3
 
-        for fc in self.convs[:-1]:
-            x = self.activation(fc(x))
+        for fc, bn in zip(self.convs[:-1], self.bns):
+            x = self.activation(bn(fc(x)))
         x = self.convs[-1](x)
 
         if self.pooling:
@@ -64,10 +67,13 @@ class CPointNet(nn.Module):
         self.pooling = pooling
 
         self.convs = [nn.Conv1d(in_dim + c_dim, hid_dim, kernel_size)]
+        self.bns = [nn.BatchNorm1d(hid_dim)]
         for _ in range(n_layers - 2):
             self.convs.append(nn.Conv1d(hid_dim, hid_dim, kernel_size))
+            self.bns.append(nn.BatchNorm1d(hid_dim))
         self.convs.append(nn.Conv1d(hid_dim, out_dim, kernel_size))
         self.convs = nn.ModuleList(self.convs)
+        self.bns = nn.ModuleList(self.bns)
 
         if pooling:
             # TODO
@@ -79,8 +85,8 @@ class CPointNet(nn.Module):
 
         # xc = torch.cat([x, c.unsqueeze(-1).expand(-1, self.c_dim, x.shape[-1])], dim=1)
         xc = torch.cat([x, c], dim=1)
-        for fc in self.convs[:-1]:
-            xc = self.activation(fc(xc))
+        for fc, bn in zip(self.convs[:-1], self.bns):
+            xc = self.activation(bn(fc(xc)))
         xc = self.convs[-1](xc)
 
         if self.pooling:
@@ -106,16 +112,19 @@ class MLP(nn.Module):
             self.last_activation = nn.Tanh()
 
         self.fcs = [nn.Linear(in_dim, hid_dim)]
+        self.bns = [nn.BatchNorm1d(hid_dim)]
         for _ in range(n_layers - 2):
             self.fcs.append(nn.Linear(hid_dim, hid_dim))
+            self.bns.append(nn.BatchNorm1d(hid_dim))
         self.fcs.append(nn.Linear(hid_dim, out_dim))
         self.fcs = nn.ModuleList(self.fcs)
+        self.bns = nn.ModuleList(self.bns)
 
     def forward(self, x):
         assert x.dim() == 2
 
-        for fc in self.fcs[:-1]:
-            x = self.activation(fc(x))
+        for fc, bn in zip(self.fcs[:-1], self.bns):
+            x = self.activation(bn(fc(x)))
 
         x = self.fcs[-1](x)
 
@@ -142,10 +151,13 @@ class CMLP(nn.Module):
             self.last_activation = nn.Tanh()
 
         self.fcs = [nn.Linear(in_dim + c_dim, hid_dim)]
+        self.bns = [nn.BatchNorm1d(hid_dim)]
         for _ in range(n_layers - 2):
             self.fcs.append(nn.Linear(hid_dim, hid_dim))
+            self.bns.append(nn.BatchNorm1d(hid_dim))
         self.fcs.append(nn.Linear(hid_dim, out_dim))
         self.fcs = nn.ModuleList(self.fcs)
+        self.bns = nn.ModuleList(self.bns)
 
     def forward(self, x, c):
         assert x.dim() == 2
@@ -153,8 +165,8 @@ class CMLP(nn.Module):
         # xc = torch.cat([x, c.unsqueeze(-1).expand(-1, self.c_dim, x.shape[-1])], dim=1)
         xc = torch.cat([x, c], dim=1)
 
-        for fc in self.fcs[:-1]:
-            xc = self.activation(fc(xc))
+        for fc, bn in zip(self.fcs[:-1], self.bns):
+            xc = self.activation(bn(fc(xc)))
         xc = self.fcs[-1](xc)
 
         if self.last_activation is not None:
