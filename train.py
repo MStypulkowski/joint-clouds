@@ -15,7 +15,7 @@ from torchvision.transforms import Compose, ToTensor
 
 from datasets import MNIST2D
 
-from models import TopDownVAE, ConditionalTopDownVAE
+from models import TopDownVAE, ConditionalTopDownVAE, lipschitzLinear
 
 from utils import count_trainable_parameters
 
@@ -49,7 +49,10 @@ def main(args):
     model = ConditionalTopDownVAE(data_train.x_dim, data_train.n_classes,
                             h1_dim=args.h1_dim, h2_dim=args.h2_dim, e_dim=args.e_dim, ze_dim=args.ze_dim, 
                             z1_dim=args.z1_dim, z2_dim=args.z2_dim, r1_dim=args.r1_dim,
-                            hid_dim=args.hid_dim, n_layers=args.n_layers, activation=args.activation).to(device)
+                            encoder_hid_dim=args.encoder_hid_dim, decoder_hid_dim=args.decoder_hid_dim,
+                            encoder_n_layers=args.encoder_n_layers, decoder_n_layers=args.decoder_n_layers,
+                            activation=args.activation, use_batchnorms=args.use_batchnorms, 
+                            use_lipschitz_norm=args.use_lipschitz_norm, lipschitz_loss_weight=args.lipschitz_loss_weight).to(device)
     
     if args.n_gpus > 1:
         model = torch.nn.DataParallel(model)
@@ -84,6 +87,7 @@ def main(args):
             data_mean, data_std = x.mean([0, 1]), x.std([0, 1])
             x = (x - data_mean) / data_std
             x = x.permute(0, 2, 1)
+            x += torch.rand_like(x) * 1e-3
             # y = y.to(device)
 
             # elbo, logits, nll, kl_z1, kl_z2 = model(x)
@@ -102,10 +106,14 @@ def main(args):
                 kl_z1 = kl_z1.mean()
                 kl_z2 = kl_z2.mean()
                 kl_ze = kl_ze.mean()
+
+            if args.use_lipschitz_norm:
+                lipschitz_loss = model.lipschitz_loss() if args.n_gpus == 1 else model.module.lipschitz_loss()
+
             if epoch < args.n_warmup_epochs:
-                nll.backward()
+                (nll + lipschitz_loss).backward()
             else:
-                elbo.backward()
+                (elbo + lipschitz_loss).backward()
             optimizer.step()
 
             pbar.set_postfix(OrderedDict(
@@ -116,6 +124,7 @@ def main(args):
                     'KL_z1': '%.4f' % kl_z1.item(),
                     'KL_z2': '%.4f' % kl_z2.item(),
                     'KL_ze': '%.4f' % kl_ze.item(),
+                    'lipschitz_loss': '%.4f' % lipschitz_loss.item(),
                     # 'Class. loss': '%.4f' % class_loss_val.item(),
                     # 'Class. accuracy': '%.2f' % accuracy,
                 }
@@ -230,4 +239,9 @@ def main(args):
 
 
 if __name__ == '__main__':
+    # import ptvsd
+    # ptvsd.enable_attach(('0.0.0.0', 3721))
+    # print("Attach debugger now")
+    # ptvsd.wait_for_attach()
+
     main()
