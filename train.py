@@ -15,7 +15,7 @@ from torchvision.transforms import Compose, ToTensor
 
 from datasets import MNIST2D
 
-from models import TopDownVAE, ConditionalTopDownVAE, lipschitzLinear
+from models import ConditionalTopDownVAE
 
 from utils import count_trainable_parameters
 
@@ -47,12 +47,11 @@ def main(args):
     print('Preparing model...')
 
     model = ConditionalTopDownVAE(data_train.x_dim, data_train.n_classes,
-                            h1_dim=args.h1_dim, h2_dim=args.h2_dim, e_dim=args.e_dim, ze_dim=args.ze_dim, 
-                            z1_dim=args.z1_dim, z2_dim=args.z2_dim, r1_dim=args.r1_dim,
-                            encoder_hid_dim=args.encoder_hid_dim, decoder_hid_dim=args.decoder_hid_dim,
-                            encoder_n_layers=args.encoder_n_layers, decoder_n_layers=args.decoder_n_layers,
-                            activation=args.activation, use_batchnorms=args.use_batchnorms, 
-                            use_lipschitz_norm=args.use_lipschitz_norm, lipschitz_loss_weight=args.lipschitz_loss_weight).to(device)
+                                h_dim=args.h_dim, e_dim=args.e_dim, ze_dim=args.ze_dim, z_dim=args.z_dim, n_latents=args.n_latents,
+                                encoder_hid_dim=args.encoder_hid_dim, decoder_hid_dim=args.decoder_hid_dim,
+                                encoder_n_resnet_blocks=args.encoder_n_resnet_blocks, decoder_n_resnet_blocks=args.decoder_n_resnet_blocks,
+                                activation=args.activation, use_batchnorms=args.use_batchnorms, 
+                                use_lipschitz_norm=args.use_lipschitz_norm, lipschitz_loss_weight=args.lipschitz_loss_weight).to(device)
     
     if args.n_gpus > 1:
         model = torch.nn.DataParallel(model)
@@ -92,9 +91,9 @@ def main(args):
 
             # elbo, logits, nll, kl_z1, kl_z2 = model(x)
             if i == 0:
-                elbo, nll, kl_z1, kl_z2, kl_ze, x_recon = model(x, epoch=epoch, save_dir=args.save_dir)
+                elbo, nll, kl_ze, kls, x_recon = model(x, epoch=epoch, save_dir=args.save_dir)
             else:
-                elbo, nll, kl_z1, kl_z2, kl_ze, x_recon = model(x)
+                elbo, nll, kl_ze, kls, x_recon = model(x)
             # class_loss_val = classification_loss(logits, y)
             # accuracy = (logits.argmax(1) == y).float().mean() * 100
 
@@ -103,9 +102,9 @@ def main(args):
             if args.n_gpus > 1:
                 elbo = elbo.mean()
                 nll = nll.mean()
-                kl_z1 = kl_z1.mean()
-                kl_z2 = kl_z2.mean()
                 kl_ze = kl_ze.mean()
+                for i in kls:
+                    kls[i] = '%.4f' % kls[i].mean().item()
 
             if args.use_lipschitz_norm:
                 lipschitz_loss = model.lipschitz_loss() if args.n_gpus == 1 else model.module.lipschitz_loss()
@@ -119,32 +118,31 @@ def main(args):
             optimizer.step()
 
             if args.use_lipschitz_norm:
-                pbar.set_postfix(OrderedDict(
+                log_dict = OrderedDict(
                     {
                         # 'Total loss': '%.4f' % loss.item(),
                         'ELBO': '%.4f' % elbo.item(),
                         'NLL': '%.4f' % nll.item(),
-                        'KL_z1': '%.4f' % kl_z1.item(),
-                        'KL_z2': '%.4f' % kl_z2.item(),
                         'KL_ze': '%.4f' % kl_ze.item(),
                         'lipschitz_loss': '%.0f' % lipschitz_loss.item(),
                         # 'Class. loss': '%.4f' % class_loss_val.item(),
                         # 'Class. accuracy': '%.2f' % accuracy,
                     }
-                ))
+                )
             else:
-                pbar.set_postfix(OrderedDict(
+                log_dict = OrderedDict(
                     {
                         # 'Total loss': '%.4f' % loss.item(),
                         'ELBO': '%.4f' % elbo.item(),
                         'NLL': '%.4f' % nll.item(),
-                        'KL_z1': '%.4f' % kl_z1.item(),
-                        'KL_z2': '%.4f' % kl_z2.item(),
                         'KL_ze': '%.4f' % kl_ze.item(),
                         # 'Class. loss': '%.4f' % class_loss_val.item(),
                         # 'Class. accuracy': '%.2f' % accuracy,
                     }
-                ))
+                )
+            log_dict.update(kls)
+            pbar.set_postfix(log_dict)
+
             # wandb.log({
             #     # 'Total loss': loss.item(),
             #     'ELBO': elbo.item(),
