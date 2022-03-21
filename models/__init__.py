@@ -1,2 +1,1 @@
-from models.topdownVAE import TopDownVAE
 from models.ctopdownVAE import ConditionalTopDownVAE

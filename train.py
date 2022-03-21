@@ -86,7 +86,7 @@ def main(args):
             x = x.float().to(device)
             data_mean, data_std = x.mean([0, 1]), x.std([0, 1])
             x = (x - data_mean) / data_std
-            x = x.permute(0, 2, 1)
+            # x = x.permute(0, 2, 1)
             x += torch.rand_like(x) * 1e-3
             # y = y.to(device)
 
@@ -109,6 +109,8 @@ def main(args):
 
             if args.use_lipschitz_norm:
                 lipschitz_loss = model.lipschitz_loss() if args.n_gpus == 1 else model.module.lipschitz_loss()
+            else:
+                lipschitz_loss = 0.
 
             if epoch < args.n_warmup_epochs:
                 (nll + lipschitz_loss).backward()
@@ -116,20 +118,33 @@ def main(args):
                 (elbo + lipschitz_loss).backward()
             optimizer.step()
 
-            pbar.set_postfix(OrderedDict(
-                {
-                    # 'Total loss': '%.4f' % loss.item(),
-                    'ELBO': '%.4f' % elbo.item(),
-                    'NLL': '%.4f' % nll.item(),
-                    'KL_z1': '%.4f' % kl_z1.item(),
-                    'KL_z2': '%.4f' % kl_z2.item(),
-                    'KL_ze': '%.4f' % kl_ze.item(),
-                    'lipschitz_loss': '%.4f' % lipschitz_loss.item(),
-                    # 'Class. loss': '%.4f' % class_loss_val.item(),
-                    # 'Class. accuracy': '%.2f' % accuracy,
-                }
-            ))
-
+            if args.use_lipschitz_norm:
+                pbar.set_postfix(OrderedDict(
+                    {
+                        # 'Total loss': '%.4f' % loss.item(),
+                        'ELBO': '%.4f' % elbo.item(),
+                        'NLL': '%.4f' % nll.item(),
+                        'KL_z1': '%.4f' % kl_z1.item(),
+                        'KL_z2': '%.4f' % kl_z2.item(),
+                        'KL_ze': '%.4f' % kl_ze.item(),
+                        'lipschitz_loss': '%.0f' % lipschitz_loss.item(),
+                        # 'Class. loss': '%.4f' % class_loss_val.item(),
+                        # 'Class. accuracy': '%.2f' % accuracy,
+                    }
+                ))
+            else:
+                pbar.set_postfix(OrderedDict(
+                    {
+                        # 'Total loss': '%.4f' % loss.item(),
+                        'ELBO': '%.4f' % elbo.item(),
+                        'NLL': '%.4f' % nll.item(),
+                        'KL_z1': '%.4f' % kl_z1.item(),
+                        'KL_z2': '%.4f' % kl_z2.item(),
+                        'KL_ze': '%.4f' % kl_ze.item(),
+                        # 'Class. loss': '%.4f' % class_loss_val.item(),
+                        # 'Class. accuracy': '%.2f' % accuracy,
+                    }
+                ))
             # wandb.log({
             #     # 'Total loss': loss.item(),
             #     'ELBO': elbo.item(),
@@ -177,8 +192,8 @@ def main(args):
                 
                 # reconstruction
                 for i in range(args.n_samples):
-                    _x = x[i].cpu().numpy().T
-                    _x_recon = x_recon[i].cpu().numpy().T
+                    _x = x[i].cpu().numpy()
+                    _x_recon = x_recon[i].cpu().numpy()
                     title = f'Epoch {epoch} recon {i}'
                     plt.figure(figsize=(10, 10))
                     fig, ax = plt.subplots(1, 2)
