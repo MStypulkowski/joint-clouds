@@ -36,7 +36,7 @@ class ConditionalTopDownVAE(nn.Module):
                 h_in_dim = h_dim
 
             self.h_blocks.append(
-                H_Block(h_in_dim, h_dim, z_dim, hid_dim=encoder_hid_dim, n_resnet_blocks=encoder_n_resnet_blocks, 
+                H_Block(h_in_dim, h_dim, z_dim, ze_dim, hid_dim=encoder_hid_dim, n_resnet_blocks=encoder_n_resnet_blocks, 
                         activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
                         use_lipschitz_norm=use_lipschitz_norm)
             )
@@ -51,6 +51,7 @@ class ConditionalTopDownVAE(nn.Module):
                             activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
                             use_lipschitz_norm=use_lipschitz_norm)
                 )
+                
         self.h_blocks = nn.ModuleList(self.h_blocks)
         self.z_blocks = nn.ModuleList(self.z_blocks)
         
@@ -84,6 +85,9 @@ class ConditionalTopDownVAE(nn.Module):
         ze = reparametrization(delta_mu_ze, delta_logvar_ze) # N x ze_dim
         ze = ze.unsqueeze(1).expand(-1, x.shape[1], self.ze_dim).reshape(-1, self.ze_dim) # N*M, ze_dim but in correct order
 
+        for h_block in self.h_blocks:
+            h_block.calculate_deltas(ze)
+            
         z = reparametrization(self.h_blocks[-1].delta_mu_z, self.h_blocks[-1].delta_logvar_z) # N*M, z2_dim
 
         for i in range(self.n_latent - 1):

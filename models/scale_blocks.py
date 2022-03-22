@@ -6,7 +6,7 @@ from utils import reparametrization
 
 
 class H_Block(nn.Module):
-    def __init__(self, h_prev_dim, h_dim, z_dim, 
+    def __init__(self, h_prev_dim, h_dim, z_dim, ze_dim,
                 hid_dim=64, n_resnet_blocks=1, activation='relu', last_activation=None, 
                 use_batchnorms=False, use_lipschitz_norm=False):
         super(H_Block, self).__init__()
@@ -14,16 +14,19 @@ class H_Block(nn.Module):
         self.mlp_h = MLP(h_prev_dim, h_dim, hid_dim=hid_dim, n_resnet_blocks=n_resnet_blocks, 
                         activation=activation, last_activation=last_activation, use_batchnorms=use_batchnorms, 
                         use_lipschitz_norm=use_lipschitz_norm)
-        self.mlp_z = MLP(h_dim, 2 * z_dim, hid_dim=hid_dim, n_resnet_blocks=n_resnet_blocks, 
+        self.cmlp_z = CMLP(h_dim, 2 * z_dim, ze_dim, hid_dim=hid_dim, n_resnet_blocks=n_resnet_blocks, 
                         activation=activation, last_activation=last_activation, use_batchnorms=use_batchnorms, 
                         use_lipschitz_norm=use_lipschitz_norm)
 
+        self.h = None
         self.delta_mu_z, self.delta_logvar_z = None, None
 
     def forward(self, h_prev):
-        h = self.mlp_h(h_prev)
-        self.delta_mu_z, self.delta_logvar_z = self.mlp_z(h).chunk(2, 1)
-        return h
+        self.h = self.mlp_h(h_prev)
+        return self.h
+    
+    def calculate_deltas(self, ze):
+        self.delta_mu_z, self.delta_logvar_z = self.cmlp_z(self.h, ze).chunk(2, 1)
 
     def get_params(self):
         return self.delta_mu_z, self.delta_logvar_z
