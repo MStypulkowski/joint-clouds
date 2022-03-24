@@ -67,7 +67,6 @@ class MNIST2D(Dataset):
         
         return clouds, labels, contexts
         
-
     def __getitem__(self, idx):
         cloud = self.transform(self.clouds[idx]).squeeze(0)
         context = torch.tensor(self.contexts[idx])
@@ -91,7 +90,6 @@ class MNIST2D(Dataset):
             context = context[:self.n_points_per_cloud]
         
         return cloud.squeeze(0), self.labels[idx], context
-
 
     def __len__(self):
         return len(self.labels)

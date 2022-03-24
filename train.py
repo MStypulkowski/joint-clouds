@@ -36,9 +36,9 @@ def main(args):
 
     print('=' * 100)
     print('Preparing dataset...')
-    data_train = MNIST2D(args.data_dir)
+    data_train = MNIST2D(args.data_dir, n_points_per_cloud=args.n_points_per_cloud)
     print(f'Loaded train split with {len(data_train)} samples.')
-    data_test = MNIST2D(args.data_dir, split='test')
+    data_test = MNIST2D(args.data_dir, split='test', n_points_per_cloud=args.n_points_per_cloud)
     print(f'Loaded test split with {len(data_test)} samples.')
     dataloader_train = DataLoader(data_train, batch_size=args.bsz, shuffle=True)
     dataloader_test = DataLoader(data_test, batch_size=args.bsz, shuffle=True)
@@ -90,10 +90,11 @@ def main(args):
             # y = y.to(device)
 
             # elbo, logits, nll, kl_z1, kl_z2 = model(x)
-            if i == 0:
-                elbo, nll, kl_ze, kls, x_recon = model(x, epoch=epoch, save_dir=args.save_dir)
+            if epoch % args.eval_frequency == 0 and i == len(dataloader_train) - 1:
+                elbo, nll, kl_ze, kls, x_recon, zs_recon = model(x, epoch=epoch, save_dir=args.save_dir)
             else:
-                elbo, nll, kl_ze, kls, x_recon = model(x)
+                elbo, nll, kl_ze, kls = model(x)
+
             # class_loss_val = classification_loss(logits, y)
             # accuracy = (logits.argmax(1) == y).float().mean() * 100
 
@@ -172,15 +173,16 @@ def main(args):
 
                 # generation
                 if args.n_gpus > 1:
-                    samples = model.module.sample(args.n_samples, args.n_points_per_cloud_gen)
+                    samples, zs = model.module.sample(args.n_samples, args.n_points_per_cloud_gen)
                 else:
-                    samples = model.sample(args.n_samples, args.n_points_per_cloud_gen)
+                    samples, zs = model.sample(args.n_samples, args.n_points_per_cloud_gen)
+                
                 samples = samples * data_std + data_mean
                 for i, sample in enumerate(samples):
                     sample = sample.cpu().numpy()
                     title = f'Epoch {epoch} sample {i}'
                     plt.figure(figsize=(5, 10))
-                    plt.scatter(sample[:, 0], sample[:, 1])
+                    plt.scatter(sample[:, 0], sample[:, 1], alpha=0.2)
                     plt.title(title)
                     plt.savefig(os.path.join(args.save_dir, 'figures', title + '.png'))
                     plt.close()
@@ -188,6 +190,15 @@ def main(args):
                     # table = wandb.Table(data=sample, columns=['x1', 'x2'])
                     # wandb.log({f'Sample {i} epoch {epoch}': wandb.plot.scatter(table, 'x1', 'x2', title=f'Sample {i} epoch {epoch}')})
                 
+                for i, _z in enumerate(zs):
+                    for j, sample in enumerate(_z):
+                        title = f'Sample {j} Z_{i}'
+                        plt.figure(figsize=(5, 10))
+                        plt.scatter(sample[:, 0], sample[:, 1], alpha=0.2)
+                        plt.title(title)
+                        plt.savefig(os.path.join(args.save_dir, 'figures', title + 'png'))
+                        plt.close()
+
                 # reconstruction
                 for i in range(args.n_samples):
                     _x = x[i].cpu().numpy()
@@ -200,6 +211,16 @@ def main(args):
                     fig.suptitle(title)
                     plt.savefig(os.path.join(args.save_dir, 'figures', title + '.png'))
                     plt.close()
+
+                for i, _z in enumerate(zs_recon):
+                    for j, sample in enumerate(_z[:args.n_samples]):
+                        title = f'Recon {j} Z_{i}'
+                        sample = sample.cpu().numpy()
+                        plt.figure(figsize=(5, 10))
+                        plt.scatter(sample[:, 0], sample[:, 1])
+                        plt.title(title)
+                        plt.savefig(os.path.join(args.save_dir, 'figures', title + 'png'))
+                        plt.close()
                 # # ELBO + classification
                 # test_shape_count = 0
                 # test_elbo_acc = 0.
