@@ -1,0 +1,32 @@
+# data
+data_dir: /home/sharv/Projects/joint-clouds/datasets/joint-clouds/data/MNIST2D/
+
+# model
+h_dim: 2
+e_dim: 64
+ze_dim: 64
+z_dim: 2
+n_latents: 2
+encoder_hid_dim: 128
+decoder_hid_dim: 512
+encoder_n_resnet_blocks: 2
+decoder_n_resnet_blocks: 2
+activation: silu
+use_batchnorms: False
+use_lipschitz_norm: False
+lipschitz_loss_weight: 1e-6
+
+# training
+gpu: True
+n_gpus: 1
+n_points_per_cloud: 256
+bsz: 512
+lr: 1e-5
+n_epochs: 100
+n_warmup_epochs: 30
+
+# evaluation
+save_dir: /home/sharv/Projects/joint-clouds/datasets/joint-clouds/results
+eval_frequency: 10
+n_samples: 3
+n_points_per_cloud_gen: 1024

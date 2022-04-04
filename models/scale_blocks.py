@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.backbones import MLP, CMLP
+from models.backbones import MLP, CMLP, SMLP, FMLP
 from utils import reparametrization
 
 

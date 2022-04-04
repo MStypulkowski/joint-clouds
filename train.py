@@ -23,7 +23,7 @@ from utils import count_trainable_parameters
 # wandb.login()
 
 
-@hydra.main(config_path='./configs', config_name='config7')
+@hydra.main(config_path='./configs', config_name='config_sv')
 def main(args):
     # experiment = Experiment(project_name='joint-clouds')
     # experiment.log_parameters(args)
@@ -71,12 +71,12 @@ def main(args):
         for i, (x, y, _) in enumerate(pbar):
             if epoch == 0 and i == 0:
                 sample = x[0].numpy()
-                title = f'data'
-                plt.figure(figsize=(5, 10))
-                plt.scatter(sample[:, 0], sample[:, 1])
-                plt.title(title)
-                plt.savefig(os.path.join(args.save_dir, 'figures', title + '.png'))
-                plt.close()
+                # title = f'data'
+                # plt.figure(figsize=(5, 10))
+                # plt.scatter(sample[:, 0], sample[:, 1])
+                # plt.title(title)
+                # plt.savefig(os.path.join(args.save_dir, 'figures', title + '.png'))
+                # plt.close()
                 # sample = [[x1, x2] for (x1, x2) in sample]
                 # table = wandb.Table(data=sample, columns=['x1', 'x2'])
                 # wandb.log({f'Data': wandb.plot.scatter(table, 'x1', 'x2', title=f'Data')})
