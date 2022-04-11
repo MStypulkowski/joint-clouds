@@ -120,6 +120,8 @@ class ResNetBlock(nn.Module):
         if use_batchnorms:
             self.bn1 = nn.BatchNorm1d(out_dim)
             self.bn2 = nn.BatchNorm1d(out_dim)
+
+        # self.beta = nn.Parameter(torch.zeros(out_dim))
     
     def forward(self, x, c=None):
         if c is not None:
@@ -138,7 +140,9 @@ class ResNetBlock(nn.Module):
                 _x = torch.cat([_x, c], dim=1)
             _x = self.fc2(_x)
 
-        _x += x # TODO check if not torch.cat([_x, x], dim=1)
+
+        # _x = self.beta * _x + x
+        _x += x
         return self.activation(_x)
 
 

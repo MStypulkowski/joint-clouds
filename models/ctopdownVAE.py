@@ -3,6 +3,7 @@ from collections import OrderedDict
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import wandb
 import matplotlib.pyplot as plt
 
@@ -14,7 +15,7 @@ from utils import count_trainable_parameters, reparametrization, get_kl
 class ConditionalTopDownVAE(nn.Module):
     def __init__(self, x_dim, y_dim, h_dim=64, e_dim=64, ze_dim=64, z_dim=64,
                 n_latents=2, encoder_hid_dim=64, decoder_hid_dim=64, encoder_n_resnet_blocks=1, decoder_n_resnet_blocks=1,
-                activation='relu', use_batchnorms=False, use_lipschitz_norm=False, lipschitz_loss_weight=1e-6):
+                activation='relu', last_activation=None, use_batchnorms=False, use_lipschitz_norm=False, lipschitz_loss_weight=1e-6):
         super(ConditionalTopDownVAE, self).__init__()
 
         self.ze_dim = ze_dim
@@ -36,7 +37,7 @@ class ConditionalTopDownVAE(nn.Module):
                 h_in_dim = h_dim
             self.h_blocks.append(
                 H_Block(h_in_dim, h_dim, z_dim, ze_dim, i, n_latents, hid_dim=encoder_hid_dim, n_resnet_blocks=encoder_n_resnet_blocks, 
-                        activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
+                        activation=activation, last_activation=last_activation, use_batchnorms=use_batchnorms, 
                         use_lipschitz_norm=use_lipschitz_norm)
             )
 
@@ -47,7 +48,7 @@ class ConditionalTopDownVAE(nn.Module):
                     z_in_dim = 2 * z_dim # because of concatenation of z and r from previous z_block
                 self.z_blocks.append(
                     Z_Block(z_in_dim, z_dim, z_dim, ze_dim, hid_dim=decoder_hid_dim, n_resnet_blocks=decoder_n_resnet_blocks, 
-                            activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
+                            activation=activation, last_activation=last_activation, use_batchnorms=use_batchnorms, 
                             use_lipschitz_norm=use_lipschitz_norm)
                 )
                 
@@ -55,15 +56,15 @@ class ConditionalTopDownVAE(nn.Module):
         self.z_blocks = nn.ModuleList(self.z_blocks)
         
         self.cmlp_z_x= CMLP(z_dim + z_dim, 2 * x_dim, ze_dim, hid_dim=decoder_hid_dim, n_resnet_blocks=decoder_n_resnet_blocks, 
-                            activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
+                            activation=activation, last_activation=last_activation, use_batchnorms=use_batchnorms, 
                             use_lipschitz_norm=use_lipschitz_norm)
 
         self.mlp_h_e = MLP(h_dim, e_dim, hid_dim=encoder_hid_dim, n_resnet_blocks=encoder_n_resnet_blocks, 
-                            activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
+                            activation=activation, last_activation=last_activation, use_batchnorms=use_batchnorms, 
                             use_lipschitz_norm=use_lipschitz_norm)
                             
         self.mlp_e_ze = MLP(e_dim, 2 * ze_dim, hid_dim=encoder_hid_dim, n_resnet_blocks=encoder_n_resnet_blocks, 
-                            activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
+                            activation=activation, last_activation=last_activation, use_batchnorms=use_batchnorms, 
                             use_lipschitz_norm=use_lipschitz_norm)
         
     def forward(self, x, only_classify=False, epoch=None, save_dir=None):
@@ -79,6 +80,7 @@ class ConditionalTopDownVAE(nn.Module):
         e = e.squeeze(1) # N, h2_dim
         e = self.mlp_h_e(e) # N, e_dim
         delta_mu_ze, delta_logvar_ze = self.mlp_e_ze(e).chunk(2, 1) # N, ze_dim
+        delta_logvar_ze = F.hardtanh(delta_logvar_ze)
 
         # top-down stochastic path
         ze = reparametrization(delta_mu_ze, delta_logvar_ze) # N x ze_dim
@@ -91,11 +93,13 @@ class ConditionalTopDownVAE(nn.Module):
         for i in range(self.n_latent - 1):
             self.h_blocks[- i - 2].calculate_deltas(ze, z_prev=z)
             delta_mu_z, delta_logvar_z = self.h_blocks[- i - 2].get_params()
+            delta_logvar_z = F.hardtanh(delta_logvar_z)
             z = self.z_blocks[i](z, ze, delta_mu_z, delta_logvar_z)
             if epoch is not None:
                 zs_recon.append(z[:, :self.z_dim].reshape(-1, x.shape[1], self.z_dim))
         
         mu_x, logvar_x = self.cmlp_z_x(z, ze).chunk(2, 1) # N*M, x_dim
+        logvar_x = F.hardtanh(logvar_x)
         mu_x = mu_x.reshape(-1, x.shape[1], self.x_dim)#.permute(0, 2, 1) # N, M, x_dim
         logvar_x = logvar_x.reshape(-1, x.shape[1], self.x_dim)#.permute(0, 2, 1) # N, M, x_dim
         if epoch is not None:
@@ -108,10 +112,12 @@ class ConditionalTopDownVAE(nn.Module):
         kls = OrderedDict({})
         for i in range(self.n_latent):
             delta_mu_z, delta_logvar_z = self.h_blocks[- i - 1].get_params()
+            delta_logvar_z = F.hardtanh(delta_logvar_z)
             if i == 0:
                 mu_z, logvar_z = torch.zeros_like(delta_mu_z), torch.zeros_like(delta_logvar_z)
             else:
                 mu_z, logvar_z = self.z_blocks[i - 1].get_params()
+            logvar_z = F.hardtanh(logvar_z)
             
             kls['KL_z' + str(self.n_latent - i)] = get_kl(delta_mu_z, delta_logvar_z, mu_z, logvar_z) / x.shape[0]
         

@@ -50,7 +50,7 @@ def main(args):
                                 h_dim=args.h_dim, e_dim=args.e_dim, ze_dim=args.ze_dim, z_dim=args.z_dim, n_latents=args.n_latents,
                                 encoder_hid_dim=args.encoder_hid_dim, decoder_hid_dim=args.decoder_hid_dim,
                                 encoder_n_resnet_blocks=args.encoder_n_resnet_blocks, decoder_n_resnet_blocks=args.decoder_n_resnet_blocks,
-                                activation=args.activation, use_batchnorms=args.use_batchnorms, 
+                                activation=args.activation, last_activation=args.last_activation, use_batchnorms=args.use_batchnorms, 
                                 use_lipschitz_norm=args.use_lipschitz_norm, lipschitz_loss_weight=args.lipschitz_loss_weight).to(device)
     
     if args.n_gpus > 1:
@@ -86,7 +86,7 @@ def main(args):
             data_mean, data_std = x.mean([0, 1]), x.std([0, 1])
             x = (x - data_mean) / data_std
             # x = x.permute(0, 2, 1)
-            x += torch.rand_like(x) * 1e-3
+            x += torch.rand_like(x) * 1e-2
             # y = y.to(device)
 
             # elbo, logits, nll, kl_z1, kl_z2 = model(x)

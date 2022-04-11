@@ -12,6 +12,7 @@ decoder_hid_dim: 512
 encoder_n_resnet_blocks: 2
 decoder_n_resnet_blocks: 2
 activation: silu
+last_activation: null
 use_batchnorms: False
 use_lipschitz_norm: False
 lipschitz_loss_weight: 1e-6
