@@ -146,7 +146,7 @@ class Encoder(nn.Module):
         self.in_block = Block(x_dim, None, hid_dim, h_dim, residual=False)
         self.h_blocks = nn.ModuleList([Block(h_dim, None, hid_dim, h_dim, residual=True) for _ in range(n_latents)])
         self.h_cond_blocks = nn.ModuleList([Block(h_dim, ze_dim, hid_dim, h_dim, residual=True) for _ in range(n_latents)])
-        self.e_block = Block(h_dim, None, hid_dim, e_dim, residual=True)
+        self.e_block = Block(h_dim, None, hid_dim, e_dim, residual=False)
 
     def forward(self, x):
         h = x.reshape(-1, self.x_dim)
