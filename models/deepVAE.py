@@ -231,6 +231,7 @@ class DeepVAE(nn.Module):
 
         nll = gaussian_nll(x.reshape(-1, self.x_dim), x_mu, x_logvar).sum() / x.shape[0]
 
+        kl_ze /= x.shape[0]
         elbo = nll + kl_ze
         for kl in kls:
             kl /= x.shape[0]
