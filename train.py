@@ -100,12 +100,13 @@ def main(args):
 
             # loss = elbo + class_loss_val
             # loss.backward()
-            if args.n_gpus > 1:
+            if args.n_gpus == 1:
                 elbo = elbo.mean()
                 nll = nll.mean()
                 kl_ze = kl_ze.mean()
                 for i in kls:
                     kls[i] = '%.4f' % kls[i].mean().item()
+                    
 
             if args.use_lipschitz_norm:
                 lipschitz_loss = model.lipschitz_loss() if args.n_gpus == 1 else model.module.lipschitz_loss()
@@ -180,47 +181,47 @@ def main(args):
                 samples = samples * data_std + data_mean
                 for i, sample in enumerate(samples):
                     sample = sample.cpu().numpy()
-                    title = f'Epoch {epoch} sample {i}'
-                    plt.figure(figsize=(5, 10))
-                    plt.scatter(sample[:, 0], sample[:, 1], alpha=0.2)
-                    plt.title(title)
-                    plt.savefig(os.path.join(args.save_dir, 'figures', title + '.png'))
-                    plt.close()
+                    # title = f'Epoch {epoch} sample {i}'
+                    # plt.figure(figsize=(5, 10))
+                    # plt.scatter(sample[:, 0], sample[:, 1], alpha=0.2)
+                    # plt.title(title)
+                    # plt.savefig(os.path.join(args.save_dir, 'figures', title + '.png'))
+                    # plt.close()
                     # sample = [[x1, x2] for (x1, x2) in sample]
                     # table = wandb.Table(data=sample, columns=['x1', 'x2'])
                     # wandb.log({f'Sample {i} epoch {epoch}': wandb.plot.scatter(table, 'x1', 'x2', title=f'Sample {i} epoch {epoch}')})
                 
-                for i, _z in enumerate(zs):
-                    for j, sample in enumerate(_z):
-                        title = f'Sample {j} Z_{i}'
-                        plt.figure(figsize=(5, 10))
-                        plt.scatter(sample[:, 0], sample[:, 1], alpha=0.2)
-                        plt.title(title)
-                        plt.savefig(os.path.join(args.save_dir, 'figures', title + 'png'))
-                        plt.close()
+                # for i, _z in enumerate(zs):
+                #     for j, sample in enumerate(_z):
+                        # title = f'Sample {j} Z_{i}'
+                        # plt.figure(figsize=(5, 10))
+                        # plt.scatter(sample[:, 0], sample[:, 1], alpha=0.2)
+                        # plt.title(title)
+                        # plt.savefig(os.path.join(args.save_dir, 'figures', title + 'png'))
+                        # plt.close()
 
                 # reconstruction
                 for i in range(args.n_samples):
                     _x = x[i].cpu().numpy()
                     _x_recon = x_recon[i].cpu().numpy()
-                    title = f'Epoch {epoch} recon {i}'
-                    plt.figure(figsize=(10, 10))
-                    fig, ax = plt.subplots(1, 2)
-                    ax[0].scatter(_x[:, 0], _x[:, 1])
-                    ax[1].scatter(_x_recon[:, 0], _x_recon[:, 1])
-                    fig.suptitle(title)
-                    plt.savefig(os.path.join(args.save_dir, 'figures', title + '.png'))
-                    plt.close()
+                    # title = f'Epoch {epoch} recon {i}'
+                    # plt.figure(figsize=(10, 10))
+                    # fig, ax = plt.subplots(1, 2)
+                    # ax[0].scatter(_x[:, 0], _x[:, 1])
+                    # ax[1].scatter(_x_recon[:, 0], _x_recon[:, 1])
+                    # fig.suptitle(title)
+                    # plt.savefig(os.path.join(args.save_dir, 'figures', title + '.png'))
+                    # plt.close()
 
                 for i, _z in enumerate(zs_recon):
                     for j, sample in enumerate(_z[:args.n_samples]):
                         title = f'Recon {j} Z_{i}'
                         sample = sample.cpu().numpy()
-                        plt.figure(figsize=(5, 10))
-                        plt.scatter(sample[:, 0], sample[:, 1])
-                        plt.title(title)
-                        plt.savefig(os.path.join(args.save_dir, 'figures', title + 'png'))
-                        plt.close()
+                        # plt.figure(figsize=(5, 10))
+                        # plt.scatter(sample[:, 0], sample[:, 1])
+                        # plt.title(title)
+                        # plt.savefig(os.path.join(args.save_dir, 'figures', title + 'png'))
+                        # plt.close()
                 # # ELBO + classification
                 # test_shape_count = 0
                 # test_elbo_acc = 0.

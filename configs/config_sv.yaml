@@ -6,7 +6,7 @@ h_dim: 2
 e_dim: 64
 ze_dim: 64
 z_dim: 2
-n_latents: 2
+n_latents: 6
 encoder_hid_dim: 128
 decoder_hid_dim: 512
 encoder_n_resnet_blocks: 2
@@ -15,14 +15,14 @@ activation: silu
 use_batchnorms: False
 use_lipschitz_norm: False
 lipschitz_loss_weight: 1e-6
-
+n_layers: 3
 # training
 gpu: True
 n_gpus: 1
-n_points_per_cloud: 256
-bsz: 512
+n_points_per_cloud: 512
+bsz: 64
 lr: 1e-5
-n_epochs: 100
+n_epochs: 10
 n_warmup_epochs: 30
 
 # evaluation

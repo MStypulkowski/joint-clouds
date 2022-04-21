@@ -55,18 +55,18 @@ class ConditionalTopDownVAE(nn.Module):
         self.z_blocks = nn.ModuleList(self.z_blocks)
         
         #SIREN
-        # self.smlp_z_x= SMLP(z_dim + z_dim, 2 * x_dim, ze_dim, hid_dim=decoder_hid_dim, n_resnet_blocks=decoder_n_resnet_blocks, 
-        #                     activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
-        #                     use_lipschitz_norm=use_lipschitz_norm)
+        self.smlp_z_x= SMLP(z_dim + z_dim, 2 * x_dim, ze_dim, hid_dim=decoder_hid_dim, n_resnet_blocks=decoder_n_resnet_blocks, 
+                            activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
+                            use_lipschitz_norm=use_lipschitz_norm)
 
         # self.cmlp_z_x= CMLP(z_dim + z_dim, 2 * x_dim, ze_dim, hid_dim=decoder_hid_dim, n_resnet_blocks=decoder_n_resnet_blocks, 
         #                     activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
         #                     use_lipschitz_norm=use_lipschitz_norm)
 
         #RFF
-        self.fmlp_z_x= FMLP(z_dim + z_dim, 2 * x_dim, ze_dim, hid_dim=decoder_hid_dim, n_resnet_blocks=decoder_n_resnet_blocks, 
-                            activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
-                            use_lipschitz_norm=use_lipschitz_norm)
+        # self.fmlp_z_x= FMLP(z_dim + z_dim, 2 * x_dim, ze_dim, hid_dim=decoder_hid_dim, n_resnet_blocks=decoder_n_resnet_blocks, 
+        #                     activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
+        #                     use_lipschitz_norm=use_lipschitz_norm)
 
         self.mlp_h_e = MLP(h_dim, e_dim, hid_dim=encoder_hid_dim, n_resnet_blocks=encoder_n_resnet_blocks, 
                             activation=activation, last_activation=None, use_batchnorms=use_batchnorms, 
@@ -105,7 +105,7 @@ class ConditionalTopDownVAE(nn.Module):
             if epoch is not None:
                 zs_recon.append(z[:, :self.z_dim].reshape(-1, x.shape[1], self.z_dim))
         
-        mu_x, logvar_x = self.fmlp_z_x(z, ze).chunk(2, 1) # N*M, x_dim
+        mu_x, logvar_x = self.smlp_z_x(z, ze).chunk(2, 1) # N*M, x_dim
         mu_x = mu_x.reshape(-1, x.shape[1], self.x_dim)#.permute(0, 2, 1) # N, M, x_dim
         logvar_x = logvar_x.reshape(-1, x.shape[1], self.x_dim)#.permute(0, 2, 1) # N, M, x_dim
         if epoch is not None:
@@ -148,7 +148,7 @@ class ConditionalTopDownVAE(nn.Module):
             zs.append(z[:, :self.z_dim].cpu().numpy().reshape(n_samples, n_points, self.z_dim))
         zs = torch.tensor(zs)
 
-        mu_x, logvar_x = self.fmlp_z_x(z, ze).chunk(2, 1) # TODO check
+        mu_x, logvar_x = self.smlp_z_x(z, ze).chunk(2, 1) # TODO check
         x = reparametrization(mu_x, logvar_x)
         x = x.reshape(n_samples, n_points, self.x_dim)
         return x, zs
