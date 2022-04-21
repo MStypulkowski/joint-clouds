@@ -22,7 +22,7 @@ import wandb
 wandb.login()
 
 
-@hydra.main(config_path='./configs', config_name='config')
+@hydra.main(config_path='./configs', config_name='config_deepvae_sv')
 def main(args):
     print(args)
 
