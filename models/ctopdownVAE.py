@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import wandb
 import matplotlib.pyplot as plt
 
-from models.backbones import MLP, CMLP#, PointNet, CPointNet
+from models.backbones import MLP, CMLP, PositionalEncoding#, PointNet, CPointNet
 from models.scale_blocks import H_Block, Z_Block
 from utils import count_trainable_parameters, reparametrization, get_kl
 
@@ -15,7 +15,8 @@ from utils import count_trainable_parameters, reparametrization, get_kl
 class ConditionalTopDownVAE(nn.Module):
     def __init__(self, x_dim, y_dim, h_dim=64, e_dim=64, ze_dim=64, z_dim=64,
                 n_latents=2, encoder_hid_dim=64, decoder_hid_dim=64, encoder_n_resnet_blocks=1, decoder_n_resnet_blocks=1,
-                activation='relu', last_activation=None, use_batchnorms=False, use_lipschitz_norm=False, lipschitz_loss_weight=1e-6):
+                activation='relu', last_activation=None, use_batchnorms=False, use_lipschitz_norm=False, lipschitz_loss_weight=1e-6, 
+                use_positional_encoding=False, L=2):
         super(ConditionalTopDownVAE, self).__init__()
 
         self.ze_dim = ze_dim
@@ -28,11 +29,20 @@ class ConditionalTopDownVAE(nn.Module):
         self.use_lipschitz_norm = use_lipschitz_norm
         self.lipschitz_loss_weight = lipschitz_loss_weight
 
+        self.use_positional_encoding = use_positional_encoding
+
+        if use_positional_encoding:
+            self.positional_encoding = PositionalEncoding(L, x_dim)
+
+
         self.h_blocks = []
         self.z_blocks = []
         for i in range(n_latents):
             if i == 0:
-                h_in_dim = x_dim
+                if use_positional_encoding:
+                    h_in_dim = 2 * L * x_dim
+                else:
+                    h_in_dim = x_dim
             else:
                 h_in_dim = h_dim
             self.h_blocks.append(
@@ -55,7 +65,12 @@ class ConditionalTopDownVAE(nn.Module):
         self.h_blocks = nn.ModuleList(self.h_blocks)
         self.z_blocks = nn.ModuleList(self.z_blocks)
         
-        self.cmlp_z_x= CMLP(z_dim + z_dim, 2 * x_dim, ze_dim, hid_dim=decoder_hid_dim, n_resnet_blocks=decoder_n_resnet_blocks, 
+        if use_positional_encoding:
+            tmp_x_dim = 2 * L * x_dim
+        else:
+            tmp_x_dim = x_dim
+
+        self.cmlp_z_x= CMLP(z_dim + z_dim, 2 * tmp_x_dim, ze_dim, hid_dim=decoder_hid_dim, n_resnet_blocks=decoder_n_resnet_blocks, 
                             activation=activation, last_activation=last_activation, use_batchnorms=use_batchnorms, 
                             use_lipschitz_norm=use_lipschitz_norm)
 
@@ -71,6 +86,10 @@ class ConditionalTopDownVAE(nn.Module):
         # bottom-up deterministic path
         # x - N, M, x_dim
         h = x.reshape(-1, self.x_dim) # N*M, x_dim
+
+        if self.use_positional_encoding:
+            h = self.positional_encoding.encode(h)
+            x_encoded = h + 0.
 
         for h_block in self.h_blocks:
             h = h_block(h)
@@ -104,6 +123,9 @@ class ConditionalTopDownVAE(nn.Module):
         logvar_x = logvar_x.reshape(-1, x.shape[1], self.x_dim)#.permute(0, 2, 1) # N, M, x_dim
         if epoch is not None:
             x_recon = reparametrization(mu_x, logvar_x) # N, M, x_dim
+            if self.use_positional_encoding:
+                x_recon = F.hardtanh(x_recon)
+                x_recon = self.positional_encoding.decode(x_recon)
         
         # ELBO
         # KLs
@@ -146,6 +168,9 @@ class ConditionalTopDownVAE(nn.Module):
 
         mu_x, logvar_x = self.cmlp_z_x(z, ze).chunk(2, 1) # TODO check
         x = reparametrization(mu_x, logvar_x)
+        if self.use_positional_encoding:
+            x = F.hardtanh(x)
+            x = self.positional_encoding.decode(x)
         x = x.reshape(n_samples, n_points, self.x_dim)
         return x, zs
 

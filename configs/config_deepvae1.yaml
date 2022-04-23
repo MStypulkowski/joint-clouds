@@ -5,20 +5,23 @@ data_dir: /pio/scratch/1/mstyp/joint-clouds/data
 h_dim: 2
 e_dim: 16
 ze_dim: 16
-z_dim: 2
+z_dim: 32
 n_latents: 2
 hid_dim: 512
 activation: silu
+use_positional_encoding: True
+L: 20 # number of positional encodings
 
 # training
 gpu: True
 n_gpus: 2
-n_points_per_cloud: 256
-bsz: 400
+n_points_per_cloud: 512
+bsz: 200
 optimizer: adam
-lr: 1e-5
+lr: 5e-6
 n_epochs: 50001
 n_warmup_epochs: 30
+beta: 1e3
 
 # evaluation
 save_dir: /pio/scratch/1/mstyp/joint-clouds/results/1

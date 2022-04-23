@@ -1,7 +1,26 @@
 from tkinter import X
 import torch
 import torch.nn as nn
+from math import pi as PI
 from models.lipschitzLinear import LipschitzLinear
+
+
+class PositionalEncoding:
+    def __init__(self, L, x_dim):
+        self.L = L
+        self.x_dim = x_dim
+    
+    def encode(self, x):
+        n = x.shape[0]
+        x_expand = x.unsqueeze(-1).expand(n, self.x_dim, self.L).reshape(n, -1)
+        power_mask = torch.tensor([2**i * PI for _ in range(self.x_dim) for i in range(-1, self.L - 1)]).reshape(1, -1).expand(n, -1).to(x.device)
+        x_expand *= power_mask
+        return torch.cat([torch.sin(x_expand), torch.cos(x_expand)], dim=1)
+
+    def decode(self, y):
+        y_sin = y[:, [i * self.L for i in range(self.x_dim)]]
+        y_decoded = torch.asin(y_sin) / (PI / 2)
+        return y_decoded
 
 
 class MLP(nn.Module):

@@ -51,7 +51,8 @@ def main(args):
                                 encoder_hid_dim=args.encoder_hid_dim, decoder_hid_dim=args.decoder_hid_dim,
                                 encoder_n_resnet_blocks=args.encoder_n_resnet_blocks, decoder_n_resnet_blocks=args.decoder_n_resnet_blocks,
                                 activation=args.activation, last_activation=args.last_activation, use_batchnorms=args.use_batchnorms, 
-                                use_lipschitz_norm=args.use_lipschitz_norm, lipschitz_loss_weight=args.lipschitz_loss_weight).to(device)
+                                use_lipschitz_norm=args.use_lipschitz_norm, lipschitz_loss_weight=args.lipschitz_loss_weight, 
+                                use_positional_encoding=args.use_positional_encoding, L=args.L).to(device)
     
     if args.n_gpus > 1:
         model = torch.nn.DataParallel(model)
@@ -83,11 +84,15 @@ def main(args):
 
             optimizer.zero_grad()
             x = x.float().to(device)
-            data_mean, data_std = x.mean([0, 1]), x.std([0, 1])
-            x = (x - data_mean) / data_std
+            # data_mean, data_std = x.mean([0, 1]), x.std([0, 1])
+            # x = (x - data_mean) / data_std
             # x = x.permute(0, 2, 1)
-            x += torch.rand_like(x) * 1e-2
+            # x += torch.rand_like(x) * 1e-2
             # y = y.to(device)
+            data_mean = x.mean([0, 1])
+            x -= data_mean
+            data_max = x.abs().max([0, 1])[0]
+            x /= data_max
 
             # elbo, logits, nll, kl_z1, kl_z2 = model(x)
             if epoch % args.eval_frequency == 0 and i == len(dataloader_train) - 1:
@@ -177,7 +182,7 @@ def main(args):
                 else:
                     samples, zs = model.sample(args.n_samples, args.n_points_per_cloud_gen)
                 
-                samples = samples * data_std + data_mean
+                samples = samples * data_max + data_mean
                 for i, sample in enumerate(samples):
                     sample = sample.cpu().numpy()
                     title = f'Epoch {epoch} sample {i}'

@@ -43,7 +43,8 @@ def main(args):
     print('=' * 100)
     print('Preparing model...')
 
-    model = DeepVAE(args.n_latents, data_train.x_dim, args.h_dim, args.hid_dim, args.e_dim, args.ze_dim, args.z_dim, args.n_points_per_cloud).to(device)
+    model = DeepVAE(args.n_latents, data_train.x_dim, args.h_dim, args.hid_dim, args.e_dim, args.ze_dim, args.z_dim, args.n_points_per_cloud,
+                    use_positional_encoding=args.use_positional_encoding, L=args.L).to(device)
     
     if args.n_gpus > 1:
         model = torch.nn.DataParallel(model)
@@ -76,9 +77,13 @@ def main(args):
 
                 optimizer.zero_grad()
                 x = x.float().to(device)
-                data_mean, data_std = x.mean([0, 1]), x.std([0, 1])
-                x = (x - data_mean) / data_std
-                x += torch.rand_like(x) * 1e-2
+                # data_mean, data_std = x.mean([0, 1]), x.std([0, 1])
+                # x = (x - data_mean) / data_std
+                # x += torch.rand_like(x) * 1e-2
+                data_mean = x.mean([0, 1])
+                x -= data_mean
+                data_max = x.abs().max([0, 1])[0]
+                x /= data_max
 
                 elbo, nll, kl_ze, kls, x_recon = model(x)
 
@@ -90,6 +95,7 @@ def main(args):
                         wandb.log({i: kls[i].mean().item()})
                         kls[i] = f'{kls[i].mean().item():.4f}'
 
+                nll *= args.beta
                 if epoch < args.n_warmup_epochs:
                     nll.backward()
                 else:
@@ -99,7 +105,7 @@ def main(args):
                 log_dict = OrderedDict(
                     {
                         'ELBO': '%.4f' % elbo.item(),
-                        'NLL': '%.4f' % nll.item(),
+                        'NLL': '%.4f' % (nll.item() / args.beta),
                         'KL_ze': '%.4f' % kl_ze.item()
                     }
                 )
@@ -108,7 +114,7 @@ def main(args):
 
                 wandb.log({
                     'ELBO': elbo.item(),
-                    'NLL': nll.item(),
+                    'NLL': (nll.item() / args.beta),
                     'KL_ze': kl_ze.item()
                 })
             
@@ -123,7 +129,9 @@ def main(args):
                     else:
                         samples = model.sample(args.n_samples, args.n_points_per_cloud_gen)
                     
-                    samples = samples * data_std + data_mean
+                    # samples = samples * data_std + data_mean
+                    samples = samples * data_max + data_mean
+
                     for i, sample in enumerate(samples):
                         sample = sample.cpu().numpy()
                         title = f'Epoch {epoch} sample {i}'
