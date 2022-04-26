@@ -64,13 +64,8 @@ class ConditionalTopDownVAE(nn.Module):
                 
         self.h_blocks = nn.ModuleList(self.h_blocks)
         self.z_blocks = nn.ModuleList(self.z_blocks)
-        
-        if use_positional_encoding:
-            tmp_x_dim = 2 * L * x_dim
-        else:
-            tmp_x_dim = x_dim
 
-        self.cmlp_z_x= CMLP(z_dim + z_dim, 2 * tmp_x_dim, ze_dim, hid_dim=decoder_hid_dim, n_resnet_blocks=decoder_n_resnet_blocks, 
+        self.cmlp_z_x= CMLP(z_dim + z_dim, 2 * x_dim, ze_dim, hid_dim=decoder_hid_dim, n_resnet_blocks=decoder_n_resnet_blocks, 
                             activation=activation, last_activation=last_activation, use_batchnorms=use_batchnorms, 
                             use_lipschitz_norm=use_lipschitz_norm)
 
@@ -85,11 +80,11 @@ class ConditionalTopDownVAE(nn.Module):
     def forward(self, x, only_classify=False, epoch=None, save_dir=None):
         # bottom-up deterministic path
         # x - N, M, x_dim
+        x_encoded = x + 0.
         h = x.reshape(-1, self.x_dim) # N*M, x_dim
 
         if self.use_positional_encoding:
             h = self.positional_encoding.encode(h)
-            x_encoded = h + 0.
 
         for h_block in self.h_blocks:
             h = h_block(h)
@@ -99,7 +94,7 @@ class ConditionalTopDownVAE(nn.Module):
         e = e.squeeze(1) # N, h2_dim
         e = self.mlp_h_e(e) # N, e_dim
         delta_mu_ze, delta_logvar_ze = self.mlp_e_ze(e).chunk(2, 1) # N, ze_dim
-        delta_logvar_ze = F.hardtanh(delta_logvar_ze)
+        # delta_logvar_ze = F.hardtanh(delta_logvar_ze)
 
         # top-down stochastic path
         ze = reparametrization(delta_mu_ze, delta_logvar_ze) # N x ze_dim
@@ -112,20 +107,23 @@ class ConditionalTopDownVAE(nn.Module):
         for i in range(self.n_latent - 1):
             self.h_blocks[- i - 2].calculate_deltas(ze, z_prev=z)
             delta_mu_z, delta_logvar_z = self.h_blocks[- i - 2].get_params()
-            delta_logvar_z = F.hardtanh(delta_logvar_z)
+            # delta_logvar_z = F.hardtanh(delta_logvar_z)
             z = self.z_blocks[i](z, ze, delta_mu_z, delta_logvar_z)
             if epoch is not None:
                 zs_recon.append(z[:, :self.z_dim].reshape(-1, x.shape[1], self.z_dim))
         
         mu_x, logvar_x = self.cmlp_z_x(z, ze).chunk(2, 1) # N*M, x_dim
-        logvar_x = F.hardtanh(logvar_x)
+        # logvar_x = F.hardtanh(logvar_x)
+
+        # if not self.use_positional_encoding:
         mu_x = mu_x.reshape(-1, x.shape[1], self.x_dim)#.permute(0, 2, 1) # N, M, x_dim
         logvar_x = logvar_x.reshape(-1, x.shape[1], self.x_dim)#.permute(0, 2, 1) # N, M, x_dim
+
         if epoch is not None:
-            x_recon = reparametrization(mu_x, logvar_x) # N, M, x_dim
-            if self.use_positional_encoding:
-                x_recon = F.hardtanh(x_recon)
-                x_recon = self.positional_encoding.decode(x_recon)
+            x_recon = reparametrization(mu_x, logvar_x)
+            # if self.use_positional_encoding:
+            #     x_recon = F.hardtanh(x_recon)
+            #     x_recon = self.positional_encoding.decode(x_recon).reshape(x.shape)
         
         # ELBO
         # KLs
@@ -134,17 +132,17 @@ class ConditionalTopDownVAE(nn.Module):
         kls = OrderedDict({})
         for i in range(self.n_latent):
             delta_mu_z, delta_logvar_z = self.h_blocks[- i - 1].get_params()
-            delta_logvar_z = F.hardtanh(delta_logvar_z)
+            # delta_logvar_z = F.hardtanh(delta_logvar_z)
             if i == 0:
                 mu_z, logvar_z = torch.zeros_like(delta_mu_z), torch.zeros_like(delta_logvar_z)
             else:
                 mu_z, logvar_z = self.z_blocks[i - 1].get_params()
-            logvar_z = F.hardtanh(logvar_z)
+            # logvar_z = F.hardtanh(logvar_z)
             
             kls['KL_z' + str(self.n_latent - i)] = get_kl(delta_mu_z, delta_logvar_z, mu_z, logvar_z) / x.shape[0]
         
         # NLL
-        nll = 0.5 * (np.log(2. * np.pi) + logvar_x + torch.exp(-logvar_x) * (x - mu_x)**2).sum() / x.shape[0]
+        nll = 0.5 * (np.log(2. * np.pi) + logvar_x + torch.exp(-logvar_x) * (x_encoded - mu_x)**2).sum() / x.shape[0]
         
         # final ELBO
         elbo = nll + kl_ze
@@ -166,11 +164,11 @@ class ConditionalTopDownVAE(nn.Module):
             zs.append(z[:, :self.z_dim].cpu().numpy().reshape(n_samples, n_points, self.z_dim))
         zs = torch.tensor(zs)
 
-        mu_x, logvar_x = self.cmlp_z_x(z, ze).chunk(2, 1) # TODO check
+        mu_x, logvar_x = self.cmlp_z_x(z, ze).chunk(2, 1)
         x = reparametrization(mu_x, logvar_x)
-        if self.use_positional_encoding:
-            x = F.hardtanh(x)
-            x = self.positional_encoding.decode(x)
+        # if self.use_positional_encoding:
+        #     x = F.hardtanh(x)
+        #     x = self.positional_encoding.decode(x)
         x = x.reshape(n_samples, n_points, self.x_dim)
         return x, zs
 

@@ -22,7 +22,7 @@ import wandb
 wandb.login()
 
 
-@hydra.main(config_path='./configs', config_name='config_deepvae_sv')
+@hydra.main(config_path='./configs', config_name='config')
 def main(args):
     print(args)
 
@@ -82,8 +82,8 @@ def main(args):
                 # x += torch.rand_like(x) * 1e-2
                 data_mean = x.mean([0, 1])
                 x -= data_mean
-                data_max = x.abs().max([0, 1])[0]
-                x /= data_max
+                data_range = (x.reshape(-1, x.shape[-1]).max(0)[0] - x.reshape(-1, x.shape[-1]).min(0)[0])
+                x /= data_range
 
                 elbo, nll, kl_ze, kls, x_recon = model(x)
 
@@ -130,7 +130,7 @@ def main(args):
                         samples = model.sample(args.n_samples, args.n_points_per_cloud_gen)
                     
                     # samples = samples * data_std + data_mean
-                    samples = samples * data_max + data_mean
+                    samples = samples * data_range + data_mean
 
                     for i, sample in enumerate(samples):
                         sample = sample.cpu().numpy()
