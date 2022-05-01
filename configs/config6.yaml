@@ -5,7 +5,7 @@ data_dir: /pio/scratch/1/mstyp/joint-clouds/data
 h_dim: 64
 e_dim: 64
 ze_dim: 64
-z_dim: 64
+z_dim: 2
 n_latents: 6
 encoder_hid_dim: 512
 decoder_hid_dim: 512
@@ -24,7 +24,7 @@ gpu: True
 n_gpus: 2
 n_points_per_cloud: 256
 bsz: 120
-lr: 1e-5
+lr: 5e-6
 n_epochs: 50001
 n_warmup_epochs: 10
 

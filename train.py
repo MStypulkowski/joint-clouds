@@ -17,7 +17,7 @@ from datasets import MNIST2D
 
 from models import ConditionalTopDownVAE
 
-from utils import count_trainable_parameters
+from utils import count_trainable_parameters, kl_balancer
 
 import wandb
 wandb.login()
@@ -94,6 +94,7 @@ def main(args):
                 x -= data_mean
                 data_range = (x.reshape(-1, x.shape[-1]).max(0)[0] - x.reshape(-1, x.shape[-1]).min(0)[0])
                 x /= data_range
+                x += torch.rand_like(x) * 1e-2
 
                 # elbo, logits, nll, kl_z1, kl_z2 = model(x)
                 if epoch % args.eval_frequency == 0 and i == len(dataloader_train) - 1:

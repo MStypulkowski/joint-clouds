@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from models.backbones import MLP, CMLP, PositionalEncoding#, PointNet, CPointNet
 from models.scale_blocks import H_Block, Z_Block
-from utils import count_trainable_parameters, reparametrization, get_kl
+from utils import count_trainable_parameters, reparametrization, get_kl, kl_balancer
 
 
 class ConditionalTopDownVAE(nn.Module):
@@ -127,9 +127,10 @@ class ConditionalTopDownVAE(nn.Module):
         
         # ELBO
         # KLs
-        kl_ze = get_kl(delta_mu_ze, delta_logvar_ze, torch.zeros_like(delta_mu_ze), torch.zeros_like(delta_logvar_ze)) / x.shape[0]
+        kl_ze = get_kl(delta_mu_ze, delta_logvar_ze, torch.zeros_like(delta_mu_ze), torch.zeros_like(delta_logvar_ze)).sum() / x.shape[0]
 
-        kls = OrderedDict({})
+        kls_dict = OrderedDict({}) # for logging
+        kls = [] # list for balancing KLs
         for i in range(self.n_latent):
             delta_mu_z, delta_logvar_z = self.h_blocks[- i - 1].get_params()
             # delta_logvar_z = F.hardtanh(delta_logvar_z)
@@ -139,19 +140,26 @@ class ConditionalTopDownVAE(nn.Module):
                 mu_z, logvar_z = self.z_blocks[i - 1].get_params()
             # logvar_z = F.hardtanh(logvar_z)
             
-            kls['KL_z' + str(self.n_latent - i)] = get_kl(delta_mu_z, delta_logvar_z, mu_z, logvar_z) / x.shape[0]
-        
+            kl = get_kl(delta_mu_z, delta_logvar_z, mu_z, logvar_z) / x.shape[0]
+            kls_dict['KL_z' + str(self.n_latent - i)] = kl.sum()
+            kls.append(kl.unsqueeze(1))
+        kls = torch.cat(kls, dim=1)
+
+        # Balancing KLs
+        kls = kl_balancer(kls).sum()
+
         # NLL
         nll = 0.5 * (np.log(2. * np.pi) + logvar_x + torch.exp(-logvar_x) * (x_encoded - mu_x)**2).sum() / x.shape[0]
         
         # final ELBO
         elbo = nll + kl_ze
-        for i in kls:
-            elbo += kls[i]
+        elbo += kls
+        # for i in kls_dict:
+        #     elbo += kls_dict[i]
 
         if epoch is None:
-            return elbo, nll, kl_ze, kls
-        return elbo, nll, kl_ze, kls, x_recon, zs_recon
+            return elbo, nll, kl_ze, kls_dict
+        return elbo, nll, kl_ze, kls_dict, x_recon, zs_recon
 
     def sample(self, n_samples, n_points, device='cuda'):
         ze = torch.randn(n_samples, self.ze_dim).to(device)
