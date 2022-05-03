@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from models.backbones import MLP, CMLP, PositionalEncoding#, PointNet, CPointNet
 from models.scale_blocks import H_Block, Z_Block
-from utils import count_trainable_parameters, reparametrization, get_kl, kl_balancer
+from models.utils import count_trainable_parameters, reparametrization, get_kl, kl_balancer
 
 
 class ConditionalTopDownVAE(nn.Module):

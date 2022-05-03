@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.utils import reparametrization, analytical_kl, gaussian_nll
+from models.utils import count_trainable_parameters, reparametrization, analytical_kl, gaussian_nll
 
 
 class CLinear(nn.Module):
@@ -31,7 +31,7 @@ class Block(nn.Module):
         for _ in range(n_layers - 2):
             self.fcs.append(nn.Linear(hid_dim, hid_dim))
         self.fcs.append(nn.Linear(hid_dim, out_dim))
-        self.fcs = nn.Sequential(self.fcs)
+        self.fcs = nn.ModuleList(self.fcs)
 
         self.activation = activation
         self.last_activation = last_activation
@@ -51,7 +51,7 @@ class CBlock(nn.Module):
         for _ in range(n_layers - 2):
             self.fcs.append(CLinear(hid_dim, c_dim, hid_dim, activation=activation, last_activation=activation))
         self.fcs.append(CLinear(hid_dim, c_dim, out_dim, activation=activation, last_activation=last_activation))
-        self.fcs = nn.Sequential(self.fcs)
+        self.fcs = nn.ModuleList(self.fcs)
 
     def forward(self, x, c):
         for fc in self.fcs:
@@ -93,7 +93,7 @@ class Decoder(nn.Module):
 
     def forward(self, z, ze):
         ze = ze.unsqueeze(1).expand(-1, z.shape[0] // ze.shape[0], ze.shape[-1]).reshape(-1, ze.shape[-1]) # z.shape[0] // ze.shape[0] gives number of points
-        x_mu, x_logvar = self.nn_z_x(z, ze)
+        x_mu, x_logvar = self.nn_z_x(z, ze).chunk(2, 1)
 
         return x_mu, x_logvar
 
@@ -108,7 +108,7 @@ class SimpleVAE(nn.Module):
         self.encoder = Encoder(x_dim, h_dim, z_dim, emb_dim, encoder_hid_dim, encoder_n_layers, activation=activation, last_activation=last_activation)
         self.decoder = Decoder(z_dim, emb_dim, x_dim, decoder_hid_dim, decoder_n_layers, activation=activation, last_activation=last_activation)
 
-    def forward(self, x, recon=False):
+    def forward(self, x):
         z_mu, z_logvar, ze_mu, ze_logvar = self.encoder(x)
         z = reparametrization(z_mu, z_logvar)
         ze = reparametrization(ze_mu, ze_logvar)
@@ -119,14 +119,14 @@ class SimpleVAE(nn.Module):
 
         nll = gaussian_nll(x.reshape(-1, x.shape[-1]), x_mu, x_logvar).sum() / x.shape[0]
 
-        if recon:
-            x_recon = reparametrization(x_mu, x_logvar)
-        
-        return nll, kl_z, kl_ze, x_recon if recon else nll, kl_z, kl_ze
+        x_recon = reparametrization(x_mu, x_logvar).reshape(x.shape)
+
+        return nll, kl_ze, kl_z, x_recon
+
     
-    def sample(self, n_clouds, n_points, x_dim):
-        z = reparametrization(torch.zeros(n_clouds * n_points, self.z_dim), torch.zeros(n_clouds * n_points, self.z_dim))
-        ze = reparametrization(torch.zeros(n_clouds, self.emb_dim), torch.zeros(n_clouds, self.emb_dim))
+    def sample(self, n_clouds, n_points, x_dim, device='cuda'):
+        z = reparametrization(torch.zeros(n_clouds * n_points, self.z_dim).to(device), torch.zeros(n_clouds * n_points, self.z_dim).to(device))
+        ze = reparametrization(torch.zeros(n_clouds, self.emb_dim).to(device), torch.zeros(n_clouds, self.emb_dim).to(device))
         x_mu, x_logvar = self.decoder(z, ze)
         x_sample = reparametrization(x_mu, x_logvar).reshape(n_clouds, n_points, x_dim)
 
@@ -138,9 +138,11 @@ if __name__ == '__main__':
 
     x = torch.randn(3, 5, 2).to(device)
     model = SimpleVAE(2, 32, 2, 16, 64, 2, 128, 4).to(device)
+    print(model)
+    print(count_trainable_parameters(model))
 
-    nll, kl_z, kl_ze, x_recon = model(x, recon=True)
-    print(nll, kl_z, kl_ze, x_recon.shape)
+    nll, kl_ze, kl_z, x_recon = model(x)
+    print(nll, kl_ze, kl_z, x_recon.shape)
 
-    samples = model.sample(2, 100)
+    samples = model.sample(3, 100, 2, device=device)
     print(samples.shape)
