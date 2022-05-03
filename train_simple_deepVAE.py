@@ -59,7 +59,7 @@ def main(args):
 
     print('=' * 100)
     print('Training...')
-    with wandb.init(project="joint-clouds", entity="joint-clouds", config=args, name=f'deep-VAE p(x) {datetime.now()}'):
+    with wandb.init(project="joint-clouds", entity="joint-clouds", config=args, name=f'simple-VAE p(x) {datetime.now()}'):
         pbar = tqdm(range(args.n_epochs), desc=f'Epoch: {epoch}')
         for epoch in pbar:
             x = data_train[0]
