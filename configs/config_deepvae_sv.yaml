@@ -6,7 +6,7 @@ h_dim: 2
 e_dim: 16
 ze_dim: 16
 z_dim: 2
-n_latents: 3
+n_latents: 2
 hid_dim: 512
 activation: silu
 
@@ -14,11 +14,11 @@ activation: silu
 gpu: True
 n_gpus: 1
 n_points_per_cloud: 256
-bsz: 64
+bsz: 16
 optimizer: adam
 lr: 1e-5
-n_epochs: 5000
-n_warmup_epochs: 30
+n_epochs: 1000
+n_warmup_epochs: 1000
 
 # evaluation
 save_dir: /home/sharv/Projects/joint-clouds/datasets/joint-clouds/results/sv
