@@ -16,6 +16,8 @@ last_activation: null
 use_batchnorms: False
 use_lipschitz_norm: False
 lipschitz_loss_weight: 1e-6
+use_positional_encoding: True
+L: 20 # number of positional encodings
 
 # training
 gpu: True

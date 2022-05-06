@@ -1,7 +1,9 @@
 from collections import OrderedDict
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
+from models.backbones import PositionalEncoding
 from models.utils import reparametrization, analytical_kl, gaussian_nll
 
 
@@ -137,19 +139,31 @@ class PriorBlock(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, n_latents, x_dim, h_dim, hid_dim, e_dim, ze_dim):
+    def __init__(self, n_latents, x_dim, h_dim, hid_dim, e_dim, ze_dim, positional_encoding=None):
         super(Encoder, self).__init__()
 
         self.x_dim = x_dim
         self.h_dim = h_dim
+        self.positional_encoding = positional_encoding
 
-        self.in_block = Block(x_dim, None, hid_dim, h_dim, residual=False)
+        if positional_encoding is None:
+            in_dim = x_dim
+        else:
+            in_dim = x_dim * 2 * positional_encoding.L
+
+        self.in_block = Block(in_dim, None, hid_dim, h_dim, residual=False)
         self.h_blocks = nn.ModuleList([Block(h_dim, None, hid_dim, h_dim, residual=True) for _ in range(n_latents)])
         self.h_cond_blocks = nn.ModuleList([Block(h_dim, ze_dim, hid_dim, h_dim, residual=True) for _ in range(n_latents)])
         self.e_block = Block(h_dim, None, hid_dim, e_dim, residual=False)
 
     def forward(self, x):
         h = x.reshape(-1, self.x_dim)
+
+        x_encoded = 0.
+        if self.positional_encoding is not None:
+            h = self.positional_encoding.encode(h)
+            x_encoded += h
+
         h = self.in_block(h)
 
         hs = []
@@ -162,7 +176,7 @@ class Encoder(nn.Module):
         e = e.squeeze(1) # N, h2_dim
         e = self.e_block(e)
 
-        return hs, e
+        return x_encoded, hs, e
 
     def condition(self, hs, ze):
         hs_cond = []
@@ -174,16 +188,23 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, n_latents, ze_dim, e_dim, z_dim, h_dim, hid_dim, x_dim, n_points_per_cloud):
+    def __init__(self, n_latents, ze_dim, e_dim, z_dim, h_dim, hid_dim, x_dim, n_points_per_cloud, positional_encoding=None):
         super(Decoder, self).__init__()
 
         self.ze_dim = ze_dim
         self.n_points_per_cloud = n_points_per_cloud
+        self.positional_encoding = positional_encoding
 
         self.ze_block = PriorBlock(ze_dim, e_dim, None, hid_dim)
         self.zn_block = PriorBlock(z_dim, h_dim, ze_dim, hid_dim)
         self.z_blocks = nn.ModuleList([TopDownBlock(z_dim, h_dim, ze_dim, hid_dim) for _ in range(n_latents - 1)])
-        self.x_block = Block(z_dim, ze_dim, hid_dim, 2 * x_dim, residual=False)
+
+        if positional_encoding is None:
+            out_dim = x_dim
+        else:
+            out_dim = x_dim * 2 * positional_encoding.L
+
+        self.x_block = Block(z_dim, ze_dim, hid_dim, 2 * out_dim, residual=False)
 
     def forward(self, hs, ze):
         z, kl_zn = self.zn_block(hs[-1], ze)
@@ -196,6 +217,10 @@ class Decoder(nn.Module):
         x_mu, x_logvar = self.x_block(z, ze).chunk(2, 1)
         x_recon = reparametrization(x_mu, x_logvar)
 
+        if self.positional_encoding is not None:
+            x_recon = F.hardtanh(x_recon)
+            x_sample = self.positional_encoding.decode(x_recon)
+
         return x_mu, x_logvar, kls, x_recon
 
     def sample(self, n_samples, n_points_per_cloud_gen, device='cuda'):
@@ -207,8 +232,14 @@ class Decoder(nn.Module):
             z = z_block.sample(z, ze)
 
         x_mu, x_logvar = self.x_block(z, ze).chunk(2, 1)
+        
+        x_sample = reparametrization(x_mu, x_logvar)
 
-        return reparametrization(x_mu, x_logvar).reshape(n_samples, n_points_per_cloud_gen, -1)
+        if self.positional_encoding is not None:
+            x_sample = F.hardtanh(x_sample)
+            x_sample = self.positional_encoding.decode(x_sample)
+
+        return x_sample.reshape(n_samples, n_points_per_cloud_gen, -1)
 
     def get_ze(self, e):
         ze, kl_ze = self.ze_block(e)
@@ -217,19 +248,28 @@ class Decoder(nn.Module):
 
 
 class DeepVAE(nn.Module):
-    def __init__(self, n_latents, x_dim, h_dim, hid_dim, e_dim, ze_dim, z_dim, n_points_per_cloud):
+    def __init__(self, n_latents, x_dim, h_dim, hid_dim, e_dim, ze_dim, z_dim, n_points_per_cloud, use_positional_encoding=False, L=2):
         super(DeepVAE, self).__init__()
         self.x_dim = x_dim
-        self.encoder = Encoder(n_latents, x_dim, h_dim, hid_dim, e_dim, ze_dim)
-        self.decoder = Decoder(n_latents, ze_dim, e_dim, z_dim, h_dim, hid_dim, x_dim, n_points_per_cloud)
+
+        if use_positional_encoding:
+            self.positional_encoding = PositionalEncoding(L, x_dim)
+        else:
+            self.positional_encoding = None
+        self.encoder = Encoder(n_latents, x_dim, h_dim, hid_dim, e_dim, ze_dim, positional_encoding=self.positional_encoding)
+        self.decoder = Decoder(n_latents, ze_dim, e_dim, z_dim, h_dim, hid_dim, x_dim, n_points_per_cloud, positional_encoding=self.positional_encoding)
 
     def forward(self, x):
-        hs, e = self.encoder(x)
+        x_encoded, hs, e = self.encoder(x)
         ze, kl_ze = self.decoder.get_ze(e)
         hs_cond = self.encoder.condition(hs, ze)
         x_mu, x_logvar, kls, x_recon = self.decoder(hs_cond, ze)
 
-        nll = gaussian_nll(x.reshape(-1, self.x_dim), x_mu, x_logvar).sum() / x.shape[0]
+        if self.positional_encoding is None:
+            x_in = x.reshape(-1, self.x_dim)
+        else:
+            x_in = x_encoded
+        nll = gaussian_nll(x_in, x_mu, x_logvar).sum() / x.shape[0]
 
         kl_ze /= x.shape[0]
         elbo = nll + kl_ze

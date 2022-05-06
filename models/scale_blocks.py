@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from models.backbones import MLP, CMLP
-from utils import reparametrization
+from models.utils import reparametrization
 
 
 class H_Block(nn.Module):

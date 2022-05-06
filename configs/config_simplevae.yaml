@@ -3,30 +3,22 @@ data_dir: /pio/scratch/1/mstyp/joint-clouds/data
 
 # model
 h_dim: 64
-e_dim: 64
-ze_dim: 64
 z_dim: 2
-n_latents: 6
+emb_dim: 256
 encoder_hid_dim: 512
+encoder_n_layers: 2
 decoder_hid_dim: 512
-encoder_n_resnet_blocks: 2
-decoder_n_resnet_blocks: 2
-activation: silu
-last_activation: null
-use_batchnorms: False
-use_lipschitz_norm: False
-lipschitz_loss_weight: 5e-6
-use_positional_encoding: True
-L: 20 # number of positional encodings
+decoder_n_layers: 3
 
 # training
 gpu: True
 n_gpus: 2
 n_points_per_cloud: 256
-bsz: 120
-lr: 5e-6
+bsz: 1800
+optimizer: adam
+lr: 1e-5
 n_epochs: 50001
-n_warmup_epochs: 10
+n_warmup_epochs: 30
 
 # evaluation
 save_dir: /pio/scratch/1/mstyp/joint-clouds/results/6
