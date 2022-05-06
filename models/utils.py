@@ -22,6 +22,8 @@ def reparametrization(mu, logvar):
     return mu + eps * std
 
 
+
+
 def analytical_kl(mu1, mu2, logvar1, logvar2):
     return -0.5 + logvar2 - logvar1 + 0.5 * (logvar1.exp() ** 2 + (mu1 - mu2) ** 2) / (logvar2.exp() ** 2)
 
