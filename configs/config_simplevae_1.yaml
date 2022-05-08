@@ -4,24 +4,27 @@ data_dir: /pio/scratch/1/mstyp/joint-clouds/data
 # model
 h_dim: 64
 z_dim: 2
-emb_dim: 256
+emb_dim: 32
 encoder_hid_dim: 512
 encoder_n_layers: 2
-decoder_hid_dim: 512
+decoder_hid_dim: 64
 decoder_n_layers: 3
+use_hypernet: True
+hyper_hid_dim: 512
+hyper_n_layers: 3
 
 # training
 gpu: True
 n_gpus: 2
-n_points_per_cloud: 256
-bsz: 1800
+n_points_per_cloud: 512
+bsz: 200
 optimizer: adam
 lr: 1e-5
 n_epochs: 50001
-n_warmup_epochs: 30
+n_warmup_epochs: 10
 
 # evaluation
-save_dir: /pio/scratch/1/mstyp/joint-clouds/results/6
+# save_dir: /pio/scratch/1/mstyp/joint-clouds/results/6
 eval_frequency: 500
 n_samples: 3
 n_points_per_cloud_gen: 1024

@@ -44,7 +44,8 @@ def main(args):
     print('Preparing model...')
 
     model = SimpleVAE(data_train.x_dim, args.h_dim, args.z_dim, args.emb_dim,
-                    args.encoder_hid_dim, args.encoder_n_layers, args.decoder_hid_dim, args.decoder_n_layers).to(device)
+                    args.encoder_hid_dim, args.encoder_n_layers, args.decoder_hid_dim, 
+                    args.decoder_n_layers, use_hypernet=args.use_hypernet, hyper_hid_dim=args.hyper_hid_dim, hyper_n_layers=args.hyper_n_layers).to(device)
     
     if args.n_gpus > 1:
         model = torch.nn.DataParallel(model)

@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from models.utils import count_trainable_parameters, reparametrization, analytical_kl, gaussian_nll
 
@@ -59,6 +60,43 @@ class CBlock(nn.Module):
         return x
         
 
+class HyperNet(nn.Module):
+    def __init__(self, target_in_dim, target_hid_dim, target_out_dim, target_n_layers, 
+                hyper_in_dim, hyper_hid_dim, hyper_n_layers,
+                activation=nn.SiLU()):
+        super(HyperNet, self).__init__()
+        self.target_in_dim = target_in_dim
+        self.target_hid_dim = target_hid_dim
+        self.target_out_dim = target_out_dim
+        self.target_n_layers = target_n_layers
+        self.activation = activation
+
+        self.hypernet_in = Block(hyper_in_dim, hyper_hid_dim, target_in_dim * target_hid_dim + target_hid_dim, hyper_n_layers, activation=activation, last_activation=None)
+        self.hypernet_hid = CBlock(hyper_in_dim, target_n_layers - 2, hyper_hid_dim, target_hid_dim * target_hid_dim + target_hid_dim, hyper_n_layers, activation=activation, last_activation=None)
+        self.hypernet_out = Block(hyper_in_dim, hyper_hid_dim, target_hid_dim * target_out_dim + target_out_dim, hyper_n_layers, activation=activation, last_activation=None)
+
+    def forward(self, x, c):
+        weights = self.hypernet_in(c)
+        x = self.forward_layer(x, weights, self.target_in_dim, self.target_hid_dim)
+
+        for i in range(self.target_n_layers - 2):
+            # layer_oh = F.one_hot(torch.tensor(i), self.target_n_layers - 2).float().to(c.device)
+            # layer_oh.unsquueze(-1).expand(c.shape[0])
+            layer_oh = F.one_hot(torch.ones(c.shape[0], dtype=int) * i, self.target_n_layers - 2).float().to(c.device)
+            weights = self.hypernet_hid(c, layer_oh)
+            x = self.forward_layer(x, weights, self.target_hid_dim, self.target_hid_dim)
+
+        weights = self.hypernet_out(c)
+        x = self.forward_layer(x, weights, self.target_hid_dim, self.target_out_dim, activation=False)
+
+        return x
+
+    def forward_layer(self, x, weights, in_dim, out_dim, activation=True):
+        w, b = weights[:, :in_dim * out_dim].reshape(-1, out_dim, in_dim), weights[:, in_dim * out_dim:]
+        x = torch.matmul(w, x.unsqueeze(-1)).squeeze(-1) + b
+        return self.activation(x) if activation else x
+
+
 class Encoder(nn.Module):
     def __init__(self, x_dim, h_dim, z_dim, emb_dim, hid_dim, n_layers, activation=nn.SiLU(), last_activation=None):
         super(Encoder, self).__init__()
@@ -87,9 +125,15 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, z_dim, emb_dim, x_dim, hid_dim, n_layers, activation=nn.SiLU(), last_activation=None):
+    def __init__(self, z_dim, emb_dim, x_dim, hid_dim, n_layers, activation=nn.SiLU(), last_activation=None, use_hypernet=False, hyper_hid_dim=None, hyper_n_layers=None):
         super(Decoder, self).__init__()
-        self.nn_z_x = CBlock(z_dim, emb_dim, hid_dim, 2 * x_dim, n_layers, activation=activation, last_activation=last_activation)
+        self.use_hypernet = use_hypernet
+
+        if use_hypernet:
+            assert hyper_hid_dim is not None and hyper_n_layers is not None
+            self.nn_z_x = HyperNet(z_dim, hid_dim, 2 * x_dim, n_layers, emb_dim, hyper_hid_dim, hyper_n_layers, activation=activation)
+        else:
+            self.nn_z_x = CBlock(z_dim, emb_dim, hid_dim, 2 * x_dim, n_layers, activation=activation, last_activation=last_activation)
 
     def forward(self, z, ze):
         ze = ze.unsqueeze(1).expand(-1, z.shape[0] // ze.shape[0], ze.shape[-1]).reshape(-1, ze.shape[-1]) # z.shape[0] // ze.shape[0] gives number of points
@@ -99,14 +143,16 @@ class Decoder(nn.Module):
 
 
 class SimpleVAE(nn.Module):
-    def __init__(self, x_dim, h_dim, z_dim, emb_dim, encoder_hid_dim, encoder_n_layers, decoder_hid_dim, decoder_n_layers, activation=nn.SiLU(), last_activation=None):
+    def __init__(self, x_dim, h_dim, z_dim, emb_dim, encoder_hid_dim, encoder_n_layers, decoder_hid_dim, decoder_n_layers, 
+                activation=nn.SiLU(), last_activation=None, use_hypernet=False, hyper_hid_dim=None, hyper_n_layers=None):
         super(SimpleVAE, self).__init__()
 
         self.z_dim = z_dim
         self.emb_dim = emb_dim
 
         self.encoder = Encoder(x_dim, h_dim, z_dim, emb_dim, encoder_hid_dim, encoder_n_layers, activation=activation, last_activation=last_activation)
-        self.decoder = Decoder(z_dim, emb_dim, x_dim, decoder_hid_dim, decoder_n_layers, activation=activation, last_activation=last_activation)
+        self.decoder = Decoder(z_dim, emb_dim, x_dim, decoder_hid_dim, decoder_n_layers, 
+                            activation=activation, last_activation=last_activation, use_hypernet=use_hypernet, hyper_hid_dim=hyper_hid_dim, hyper_n_layers=hyper_n_layers)
 
     def forward(self, x):
         z_mu, z_logvar, ze_mu, ze_logvar = self.encoder(x)
@@ -134,10 +180,15 @@ class SimpleVAE(nn.Module):
 
 
 if __name__ == '__main__':
+    # import ptvsd
+    # ptvsd.enable_attach(('0.0.0.0', 3721))
+    # print("Attach debugger now")
+    # ptvsd.wait_for_attach()
+
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     x = torch.randn(3, 5, 2).to(device)
-    model = SimpleVAE(2, 32, 2, 16, 64, 2, 128, 4).to(device)
+    model = SimpleVAE(2, 32, 2, 16, 64, 2, 128, 4, use_hypernet=True, hyper_hid_dim=256, hyper_n_layers=4).to(device)
     print(model)
     print(count_trainable_parameters(model))
 
