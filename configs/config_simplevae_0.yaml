@@ -1,5 +1,7 @@
 # data
-data_dir: /pio/scratch/1/mstyp/joint-clouds/data
+dataset: shapenet # mnist2d, shapenet
+data_dir: /pio/gluster/data/shapenet/ShapeNetCore.v2.PC15k # /pio/scratch/1/mstyp/joint-clouds/data
+classes: ['chair'] # for shapenet
 
 # model
 h_dim: 64
@@ -9,7 +11,7 @@ encoder_hid_dim: 512
 encoder_n_layers: 2
 decoder_hid_dim: 2048
 decoder_n_layers: 5
-use_hypernet: True
+use_hypernet: False
 hyper_hid_dim: 512
 hyper_n_layers: 3
 

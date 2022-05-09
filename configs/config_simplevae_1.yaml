@@ -1,5 +1,7 @@
 # data
+dataset: mnist2d # mnist2d, shapenet
 data_dir: /pio/scratch/1/mstyp/joint-clouds/data
+classes: 
 
 # model
 h_dim: 64

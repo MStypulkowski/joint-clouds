@@ -14,6 +14,11 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, ToTensor
 
 from datasets import MNIST2D
+from datasets.datasets_pointflow import (
+    CIFDatasetDecorator,
+    ShapeNet15kPointClouds,
+    CIFDatasetDecoratorMultiObject,
+)
 
 from models import SimpleVAE
 from models.utils import count_trainable_parameters
@@ -33,13 +38,22 @@ def main(args):
 
     print('=' * 100)
     print('Preparing dataset...')
-    data_train = MNIST2D(args.data_dir, n_points_per_cloud=args.n_points_per_cloud)
+    
+    if args.dataset == 'minst2d':
+        data_train = MNIST2D(args.data_dir, n_points_per_cloud=args.n_points_per_cloud)
+        # data_test = MNIST2D(args.data_dir, split='test', n_points_per_cloud=args.n_points_per_cloud)
+
+    elif args.dataset == 'shapenet':
+        data_train = ShapeNet15kPointClouds(root_dir=args.data_dir, categories=args.classes, 
+                                            tr_sample_size=args.n_points_per_cloud, te_sample_size=0, split='train', 
+                                            normalize_per_shape=False, normalize_std_per_axis=False, 
+                                            random_subsample=False, all_points_mean=None, all_points_std=None)
+
     print(f'Loaded train split with {len(data_train)} samples.')
-    # data_test = MNIST2D(args.data_dir, split='test', n_points_per_cloud=args.n_points_per_cloud)
     # print(f'Loaded test split with {len(data_test)} samples.')
     dataloader_train = DataLoader(data_train, batch_size=args.bsz, shuffle=True)
     # dataloader_test = DataLoader(data_test, batch_size=args.bsz, shuffle=True)
-
+    
     print('=' * 100)
     print('Preparing model...')
 
