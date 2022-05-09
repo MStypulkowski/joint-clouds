@@ -115,6 +115,7 @@ class SimpleVAE(nn.Module):
         x_mu, x_logvar = self.decoder(z, ze)
 
         kl_z = analytical_kl(z_mu, torch.zeros_like(z_mu), z_logvar, torch.zeros_like(z_logvar)).sum() / x.shape[0]
+        print('kl_z shape',kl_z.shape)
         kl_ze = analytical_kl(ze_mu, torch.zeros_like(ze_mu), ze_logvar, torch.zeros_like(ze_logvar)).sum() / x.shape[0]
 
         nll = gaussian_nll(x.reshape(-1, x.shape[-1]), x_mu, x_logvar).sum() / x.shape[0]

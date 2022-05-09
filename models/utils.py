@@ -29,6 +29,7 @@ def analytical_kl(mu1, mu2, logvar1, logvar2):
 
 
 def gaussian_nll(x, x_mu, x_logvar):
+    x_logvar=torch.clamp(x_logvar, min= -10, max =10)
     return 0.5 * (np.log(2. * np.pi) + x_logvar + torch.exp(-x_logvar) * (x - x_mu)**2)
 
 
@@ -46,3 +47,4 @@ def kl_balancer(kl_all):
     kl_coeff_i = kl_all.mean(dim=0, keepdim=True) + 0.01
     kl_coeff_i /= kl_coeff_i.mean(dim=1)
     return kl_all * kl_coeff_i.detach()
+

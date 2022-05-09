@@ -1,5 +1,5 @@
 # data
-data_dir: /pio/scratch/1/mstyp/joint-clouds/data
+data_dir: /home/sharv/Projects/joint-clouds/datasets/joint-clouds/data/MNIST2D/
 
 # model
 h_dim: 64
@@ -12,16 +12,16 @@ decoder_n_layers: 3
 
 # training
 gpu: True
-n_gpus: 2
-n_points_per_cloud: 256
-bsz: 1800
+n_gpus: 1
+n_points_per_cloud: 512
+bsz: 64
 optimizer: adam
 lr: 1e-5
-n_epochs: 50001
+n_epochs: 1000
 n_warmup_epochs: 30
 
 # evaluation
-save_dir: /pio/scratch/1/mstyp/joint-clouds/results/6
-eval_frequency: 500
+save_dir: /home/sharv/Projects/joint-clouds/datasets/joint-clouds/results/sv
+eval_frequency: 10
 n_samples: 3
 n_points_per_cloud_gen: 1024

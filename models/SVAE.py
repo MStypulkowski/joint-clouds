@@ -1,9 +1,11 @@
 import torch
+import pdb
 import torch.nn as nn
-
+import torch.distributions
 from models.utils import count_trainable_parameters, reparametrization, analytical_kl, gaussian_nll
-from utils.hyperspherical_uniform import HypersphericalUniform 
+from utils.von_mises_fisher import HypersphericalUniform 
 from utils.von_mises_fisher import VonMisesFisher
+from torch.distributions.kl import register_kl
 
 class CLinear(nn.Module):
     def __init__(self, in_dim, c_dim, out_dim, activation=nn.SiLU(), last_activation=None):
@@ -82,8 +84,10 @@ class Encoder(nn.Module):
         e = e.squeeze(1) # N x h_dim
         e = self.nn_h_e(e) # N x emb_dim
 
-        z_mu= self.nn_h_z(h)
-        z_mu / z_mu.norm(dim=-1, keepdim=True)
+        z_mu= self.nn_h_z(h) + .00001
+        #print(z_mu.norm(dim=-1, keepdim=True))
+        z_mu= z_mu / (z_mu.norm(dim=-1, keepdim=True) + .0001)
+
         z_logvar= self.nn_h_z_k(h) + 1
         ze_mu, ze_logvar = self.nn_e_ze(e).chunk(2, 1) # N x emb_dim
 
@@ -102,9 +106,9 @@ class Decoder(nn.Module):
         return x_mu, x_logvar
 
 
-class SVAE(nn.Module):
+class S_VAE(nn.Module):
     def __init__(self, x_dim, h_dim, z_dim, emb_dim, encoder_hid_dim, encoder_n_layers, decoder_hid_dim, decoder_n_layers, activation=nn.SiLU(), last_activation=None):
-        super(SVAE, self).__init__()
+        super(S_VAE, self).__init__()
 
         self.z_dim = z_dim
         self.emb_dim = emb_dim
@@ -114,16 +118,37 @@ class SVAE(nn.Module):
 
     def forward(self, x):
         z_mu, z_logvar, ze_mu, ze_logvar = self.encoder(x)
+        if z_mu.isnan().any():
+            pdb.set_trace()
+        if z_logvar.isnan().any():
+            pdb.set_trace()
+        if ze_mu.isnan().any():
+            pdb.set_trace()
+        if ze_logvar.isnan().any():
+            pdb.set_trace()
+        
         #z = reparametrization(z_mu, z_logvar)
         q_z = VonMisesFisher(z_mu, z_logvar)
+        
+        
         p_z = HypersphericalUniform(self.z_dim - 1)
         z = q_z.rsample()
+    
         ze = reparametrization(ze_mu, ze_logvar)
+        if ze.isnan().any():
+            pdb.set_trace()
+        if z.isnan().any():
+            pdb.set_trace()
         x_mu, x_logvar = self.decoder(z, ze)
 
-        kl_z = analytical_kl(z_mu, torch.zeros_like(z_mu), z_logvar, torch.zeros_like(z_logvar)).sum() / x.shape[0]
+        
+        kl_z= torch.distributions.kl.kl_divergence(q_z, p_z).mean()
+        
+        #kl_z = analytical_kl(z_mu, torch.zeros_like(z_mu), z_logvar, torch.zeros_like(z_logvar)).sum() / x.shape[0]
         kl_ze = analytical_kl(ze_mu, torch.zeros_like(ze_mu), ze_logvar, torch.zeros_like(ze_logvar)).sum() / x.shape[0]
-
+        print('x_logvar is', x_logvar)
+        if x_logvar.isnan().any():
+            pdb.set_trace()
         nll = gaussian_nll(x.reshape(-1, x.shape[-1]), x_mu, x_logvar).sum() / x.shape[0]
 
         x_recon = reparametrization(x_mu, x_logvar).reshape(x.shape)
@@ -144,7 +169,7 @@ if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     x = torch.randn(3, 5, 2).to(device)
-    model = SVAE(2, 32, 2, 16, 64, 2, 128, 4).to(device)
+    model = S_VAE(2, 32, 2, 16, 64, 2, 128, 4).to(device)
     print(model)
     print(count_trainable_parameters(model))
 

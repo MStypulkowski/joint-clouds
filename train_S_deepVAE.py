@@ -15,7 +15,7 @@ from torchvision.transforms import Compose, ToTensor
 
 from datasets import MNIST2D
 
-from models import SVAE
+from models import S_VAE
 from models.utils import count_trainable_parameters
 
 import wandb
@@ -43,7 +43,7 @@ def main(args):
     print('=' * 100)
     print('Preparing model...')
 
-    model = SVAE(data_train.x_dim, args.h_dim, args.z_dim, args.emb_dim,
+    model = S_VAE(data_train.x_dim, args.h_dim, args.z_dim, args.emb_dim,
                     args.encoder_hid_dim, args.encoder_n_layers, args.decoder_hid_dim, args.decoder_n_layers).to(device)
     
     if args.n_gpus > 1:
@@ -59,7 +59,8 @@ def main(args):
 
     print('=' * 100)
     print('Training...')
-    with wandb.init(project="joint-clouds", entity="joint-clouds", config=args, name=f'simple-VAE p(x) {datetime.now()}'):
+    torch.autograd.set_detect_anomaly(True)
+    with wandb.init(project="JointClouds", entity="sharv", config=args, name=f'sharv-S-VAE p(x) {datetime.now()}'):
         for epoch in range(args.n_epochs):
             pbar = tqdm(dataloader_train, desc=f'Epoch: {epoch}')
             for i, (x, y, _) in enumerate(pbar):

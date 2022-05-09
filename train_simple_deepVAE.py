@@ -59,7 +59,7 @@ def main(args):
 
     print('=' * 100)
     print('Training...')
-    with wandb.init(project="joint-clouds", entity="joint-clouds", config=args, name=f'simple-VAE p(x) {datetime.now()}'):
+    with wandb.init(project="JointClouds", entity="sharv", config=args, name=f'sharv-simple-VAE p(x) {datetime.now()}'):
         for epoch in range(args.n_epochs):
             pbar = tqdm(dataloader_train, desc=f'Epoch: {epoch}')
             for i, (x, y, _) in enumerate(pbar):
