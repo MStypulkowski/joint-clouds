@@ -1,0 +1,28 @@
+# data
+dataset: shapenet # mnist2d, shapenet
+data_dir: /pio/gluster/data/shapenet/ShapeNetCore.v2.PC15k # /pio/scratch/1/mstyp/joint-clouds/data
+classes: ['chair'] # for shapenet
+
+# model
+n_latents: 4
+h_dim: 256
+z_dim: 256
+hid_dim: 2048
+n_layers: 4
+
+# training
+gpu: True
+n_gpus: 2
+n_points_per_cloud: 2048
+bsz: 2000
+optimizer: adam
+lr: 1e-4
+n_epochs: 50001
+n_warmup_epochs: 0
+
+# evaluation
+log_dir: /pio/scratch/1/mstyp/joint-clouds/logs
+# save_dir: /pio/scratch/1/mstyp/joint-clouds/results/6
+eval_frequency: 500
+n_samples: 3
+n_points_per_cloud_gen: 1024

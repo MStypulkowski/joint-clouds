@@ -51,6 +51,21 @@ class Uniform15KPC(Dataset):
         self.random_subsample = random_subsample
         self.input_dim = input_dim
 
+        angles = (-np.pi/2, 0, np.pi)
+        self.rotation_matrix = np.array(
+            [[1, 0, 0],
+            [0, np.cos(angles[0]), -np.sin(angles[0])],
+            [0, np.sin(angles[0]), np.cos(angles[0])]]
+        ) @ np.array(
+            [[np.cos(angles[1]), 0, np.sin(angles[1])],
+            [0, 1, 0],
+            [-np.sin(angles[1]), 0, np.cos(angles[1])]]
+        ) @ np.array(
+            [[np.cos(angles[2]), -np.sin(angles[2]), 0],
+            [np.sin(angles[2]), np.cos(angles[2]), 0],
+            [0, 0, 1]]
+        )
+
         self.all_cate_mids = []
         self.cate_idx_lst = []
         self.all_points = []
@@ -90,6 +105,10 @@ class Uniform15KPC(Dataset):
 
         # Normalization
         self.all_points = np.concatenate(self.all_points)  # (N, 15000, 3)=
+
+        # Rotate for better plotting view
+        self.all_points = self.all_points @ self.rotation_matrix
+
         self.normalize_per_shape = normalize_per_shape
         self.normalize_std_per_axis = normalize_std_per_axis
         if all_points_mean is not None and all_points_std is not None:  # using loaded dataset stats

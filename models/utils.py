@@ -1,5 +1,21 @@
+import os
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
+
+
+def plot_3d_cloud(cloud, log_dir, name, s=10, xlim=None, ylim=None, zlim=None):
+    fig = plt.figure(figsize=(10,10))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(cloud[:,0], cloud[:,1], cloud[:,2], s=s)
+    if xlim:
+        ax.set_xlim([-xlim,xlim])
+    if ylim:
+        ax.set_ylim([-ylim,ylim])
+    if zlim:
+        ax.set_zlim([-zlim,zlim])
+    plt.savefig(os.path.join(log_dir, f'{name}.png'), bbox_inches='tight')
+    plt.show()
 
 
 def count_trainable_parameters(model):
